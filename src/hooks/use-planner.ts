@@ -80,6 +80,35 @@ export function usePlanner() {
     });
   }, []);
 
+  /**
+   * Toggle a task's "done" state with the right semantics:
+   * - once tasks → per-day completion (done just for that day).
+   * - recurring tasks → archived (done "for good", stops recurring).
+   * `done` forces a direction; omit to flip the current state.
+   */
+  const toggleDone = useCallback(
+    (task: Task, day: Date, currentlyDone: boolean) => {
+      const recurring = task.recurrence.kind !== "once";
+      const makeDone = !currentlyDone;
+
+      if (recurring) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? { ...t, archived: makeDone } : t)),
+        );
+        return;
+      }
+
+      const key = `${task.id}:${dateKey(day)}`;
+      setCompletions((prev) => {
+        if (makeDone) return { ...prev, [key]: nowMinutes() };
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [],
+  );
+
   return {
     hydrated,
     tasks,
@@ -91,5 +120,6 @@ export function usePlanner() {
     updateSettings,
     completeTask,
     uncompleteTask,
+    toggleDone,
   };
 }

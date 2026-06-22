@@ -15,6 +15,7 @@ interface TimelineProps {
   now: Date;
   occurrences: ResolvedOccurrence[];
   onOccurrenceClick: (occ: ResolvedOccurrence) => void;
+  onToggleDone: (occ: ResolvedOccurrence) => void;
   onSlotClick: (startMinute: number) => void;
 }
 
@@ -23,6 +24,7 @@ export function Timeline({
   now,
   occurrences,
   onOccurrenceClick,
+  onToggleDone,
   onSlotClick,
 }: TimelineProps) {
   const placed = useMemo(() => placeOccurrences(occurrences), [occurrences]);
@@ -87,6 +89,7 @@ export function Timeline({
             placed={p}
             pxPerMinute={PX_PER_MINUTE}
             onClick={() => onOccurrenceClick(p.occurrence)}
+            onToggleDone={() => onToggleDone(p.occurrence)}
           />
         ))}
       </div>

@@ -45,6 +45,12 @@ export interface Task {
   notifyBeforeStart?: number;
   notifyBeforeEnd?: number;
 
+  /**
+   * Marks a recurring task as done "for good": it stops producing occurrences
+   * from now on. Once tasks use per-day completions instead (see Completion).
+   */
+  archived?: boolean;
+
   createdAt: string;
 }
 

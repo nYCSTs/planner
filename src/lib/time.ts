@@ -70,6 +70,7 @@ export function resolveOccurrences(
   const result: ResolvedOccurrence[] = [];
 
   for (const task of tasks) {
+    if (task.archived) continue;
     if (!taskOccursOn(task, day)) continue;
 
     const completionKey = `${task.id}:${key}`;
