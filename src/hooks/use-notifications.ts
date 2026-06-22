@@ -56,6 +56,7 @@ export function useNotifications(
 
     for (const occ of occurrences) {
       if (occ.completed) continue;
+      if (!occ.scheduled) continue; // unscheduled tasks have no time to notify
       const leadStart = occ.task.notifyBeforeStart ?? settings.notifyBeforeStart;
       const leadEnd = occ.task.notifyBeforeEnd ?? settings.notifyBeforeEnd;
 

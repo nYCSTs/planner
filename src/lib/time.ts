@@ -88,6 +88,23 @@ export function resolveOccurrences(
   for (const task of tasks) {
     if (!taskOccursOn(task, day)) continue;
 
+    // Unscheduled task: no time, never on the timeline. Resolves once per day so
+    // it can be listed and completed per day under "Sem horário".
+    if (task.startMinute === null) {
+      const completionKey = `${task.id}:${key}`;
+      result.push({
+        task,
+        key: completionKey,
+        date: key,
+        startMinute: -1,
+        endMinute: -1,
+        openEnded: false,
+        scheduled: false,
+        completed: completions[completionKey] !== undefined,
+      });
+      continue;
+    }
+
     if (isHourly(task.recurrence)) {
       // The task starts at startMinute and repeats every `interval` hours from
       // there until end of day, anchored at the start time. Both the hour and
@@ -118,6 +135,7 @@ export function resolveOccurrences(
           startMinute: start,
           endMinute: duration === null && done ? doneAt : baseEnd,
           openEnded: duration === null,
+          scheduled: true,
           completed: done,
         });
       }
@@ -143,6 +161,7 @@ export function resolveOccurrences(
       startMinute: task.startMinute,
       endMinute,
       openEnded,
+      scheduled: true,
       completed: isCompleted,
     });
   }
@@ -152,7 +171,8 @@ export function resolveOccurrences(
   // they survive until day's end; hourly slots have a concrete per-hour end.
   const visible = isCurrentDay
     ? result.filter(
-        (o) => !(o.task.hideElapsed && o.endMinute <= currentMinute),
+        (o) =>
+          !(o.scheduled && o.task.hideElapsed && o.endMinute <= currentMinute),
       )
     : result;
 

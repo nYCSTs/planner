@@ -45,6 +45,19 @@ export default function Home() {
     [planner.tasks, day, planner.completions, now],
   );
 
+  // Timeline only shows scheduled occurrences; the list shows both lanes.
+  const scheduledOccurrences = useMemo(
+    () => occurrences.filter((o) => o.scheduled),
+    [occurrences],
+  );
+  const unscheduledOccurrences = useMemo(
+    () => occurrences.filter((o) => !o.scheduled),
+    [occurrences],
+  );
+  const pendingUnscheduled = unscheduledOccurrences.filter(
+    (o) => !o.completed,
+  ).length;
+
   const todayOccurrences = useMemo(
     () => resolveOccurrences(planner.tasks, now, planner.completions, now),
     [planner.tasks, now, planner.completions],
@@ -59,7 +72,7 @@ export default function Home() {
   const openCreate = (startMinute: number) => setDraft({ startMinute });
 
   const openEdit = (occ: ResolvedOccurrence) =>
-    setDraft({ startMinute: occ.startMinute, task: occ.task });
+    setDraft({ startMinute: occ.task.startMinute, task: occ.task });
 
   const toggleDone = (occ: ResolvedOccurrence) => planner.toggleDone(occ);
 
@@ -72,8 +85,14 @@ export default function Home() {
             size="icon"
             onClick={() => setListOpen((o) => !o)}
             aria-label="Tarefas do dia"
+            className="relative"
           >
             <ListTodo className="h-4 w-4" />
+            {pendingUnscheduled > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
+                {pendingUnscheduled}
+              </span>
+            )}
           </Button>
           <h1 className="ml-1 text-lg font-semibold tracking-tight">Planner</h1>
         </div>
@@ -134,9 +153,11 @@ export default function Home() {
         >
           {planner.hydrated && listOpen && (
             <TaskList
-              occurrences={occurrences}
+              scheduled={scheduledOccurrences}
+              unscheduled={unscheduledOccurrences}
               onToggleDone={toggleDone}
               onSelect={openEdit}
+              onAddUnscheduled={() => setDraft({ startMinute: null })}
             />
           )}
         </aside>
@@ -146,7 +167,7 @@ export default function Home() {
             <Timeline
               day={day}
               now={now}
-              occurrences={occurrences}
+              occurrences={scheduledOccurrences}
               onOccurrenceClick={openEdit}
               onToggleDone={toggleDone}
               onSlotClick={openCreate}

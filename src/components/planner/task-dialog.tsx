@@ -45,7 +45,8 @@ const RECURRENCE_OPTIONS: { value: RecurrenceKind; label: string }[] = [
 ];
 
 export interface TaskDraft {
-  startMinute: number;
+  /** Prefill start time, or null to open as an unscheduled ("Sem horário") task. */
+  startMinute: number | null;
   task?: Task;
 }
 
@@ -76,6 +77,7 @@ export function TaskDialog({
 
   const [title, setTitle] = useState("");
   const [color, setColor] = useState(TASK_COLORS[0]);
+  const [hasTime, setHasTime] = useState(true);
   const [start, setStart] = useState("09:00");
   const [hasEnd, setHasEnd] = useState(true);
   const [end, setEnd] = useState("10:00");
@@ -92,11 +94,13 @@ export function TaskDialog({
     /* eslint-disable react-hooks/set-state-in-effect */
     if (!open || !draft) return;
     if (editing) {
+      const scheduled = editing.startMinute !== null;
       setTitle(editing.title);
       setColor(editing.color);
-      setStart(minutesToTime(editing.startMinute));
+      setHasTime(scheduled);
+      setStart(minutesToTime(editing.startMinute ?? 540));
       setHasEnd(editing.endMinute !== null);
-      setEnd(minutesToTime(editing.endMinute ?? editing.startMinute + 60));
+      setEnd(minutesToTime(editing.endMinute ?? (editing.startMinute ?? 540) + 60));
       setKind(editing.recurrence.kind);
       setWeekdays(editing.recurrence.weekdays ?? []);
       setEveryHour(editing.recurrence.everyHour ?? false);
@@ -107,9 +111,10 @@ export function TaskDialog({
     } else {
       setTitle("");
       setColor(randomColor());
-      setStart(minutesToTime(draft.startMinute));
+      setHasTime(draft.startMinute !== null);
+      setStart(minutesToTime(draft.startMinute ?? 540));
       setHasEnd(true);
-      setEnd(minutesToTime(draft.startMinute + 60));
+      setEnd(minutesToTime((draft.startMinute ?? 540) + 60));
       setKind("once");
       setWeekdays([]);
       setEveryHour(false);
@@ -121,11 +126,12 @@ export function TaskDialog({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, draft, editing, defaultNotifyStart, defaultNotifyEnd]);
 
-  const startMinute = timeToMinutes(start);
-  const endMinute = hasEnd ? timeToMinutes(end) : null;
+  // Without a time the task is unscheduled: no start/end, no hourly, no conflicts.
+  const startMinute = hasTime ? timeToMinutes(start) : null;
+  const endMinute = hasTime && hasEnd ? timeToMinutes(end) : null;
 
-  // "Every hour" only makes sense on recurring patterns, not single-day tasks.
-  const hourly = everyHour && kind !== "once";
+  // "Every hour" only makes sense on timed, recurring patterns.
+  const hourly = hasTime && everyHour && kind !== "once";
 
   const candidate = useMemo(
     () => ({
@@ -142,11 +148,19 @@ export function TaskDialog({
   );
 
   const conflicts = useMemo(
-    () => findConflicts(candidate, existingTasks, editing?.id),
-    [candidate, existingTasks, editing?.id],
+    () =>
+      startMinute === null
+        ? []
+        : findConflicts(
+            { ...candidate, startMinute },
+            existingTasks,
+            editing?.id,
+          ),
+    [candidate, startMinute, existingTasks, editing?.id],
   );
 
-  const endBeforeStart = endMinute !== null && endMinute <= startMinute;
+  const endBeforeStart =
+    startMinute !== null && endMinute !== null && endMinute <= startMinute;
   const invalid = !title.trim() || endBeforeStart || (kind === "custom" && weekdays.length === 0);
 
   const toggleWeekday = (d: Weekday) => {
@@ -253,7 +267,19 @@ export function TaskDialog({
             </div>
           )}
 
-          {kind !== "once" && (
+          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div>
+              <Label htmlFor="hasTime" className="text-sm font-normal">
+                Definir horário
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Desligue para uma tarefa sem horário (não vai para a timeline).
+              </p>
+            </div>
+            <Switch id="hasTime" checked={hasTime} onCheckedChange={setHasTime} />
+          </div>
+
+          {hasTime && kind !== "once" && (
             <div className="space-y-2 rounded-md border px-3 py-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -292,22 +318,25 @@ export function TaskDialog({
             </div>
           )}
 
-          <div className="flex items-center justify-between rounded-md border px-3 py-2">
-            <div>
-              <Label htmlFor="hideElapsed" className="text-sm font-normal">
-                Não considerar passado
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Esconde ocorrências já encerradas no dia de hoje.
-              </p>
+          {hasTime && (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <Label htmlFor="hideElapsed" className="text-sm font-normal">
+                  Não considerar passado
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Esconde ocorrências já encerradas no dia de hoje.
+                </p>
+              </div>
+              <Switch
+                id="hideElapsed"
+                checked={hideElapsed}
+                onCheckedChange={setHideElapsed}
+              />
             </div>
-            <Switch
-              id="hideElapsed"
-              checked={hideElapsed}
-              onCheckedChange={setHideElapsed}
-            />
-          </div>
+          )}
 
+          {hasTime && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -346,14 +375,15 @@ export function TaskDialog({
               />
             </div>
           </div>
+          )}
 
-          {hourly && (
+          {hasTime && hourly && (
             <p className="text-xs text-muted-foreground">
               Começa no primeiro horário e repete a cada hora até o fim do dia
               (ex: 23:00 → só às 23:00; 09:15 → 09:15, 10:15, 11:15…).
             </p>
           )}
-          {!hasEnd && (
+          {hasTime && !hasEnd && (
             <p className="text-xs text-muted-foreground">
               Sem término definido — você finaliza manualmente pela timeline.
             </p>
@@ -364,6 +394,7 @@ export function TaskDialog({
             </p>
           )}
 
+          {hasTime && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="ns">Avisar antes de iniciar (min)</Label>
@@ -387,6 +418,7 @@ export function TaskDialog({
               />
             </div>
           </div>
+          )}
 
           {conflicts.length > 0 && (
             <div className="flex gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-xs">

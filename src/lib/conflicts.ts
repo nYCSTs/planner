@@ -35,15 +35,21 @@ export function findConflicts(
   existing: Task[],
   ignoreId?: string,
 ): Task[] {
+  // Unscheduled tasks (no start time) never conflict.
+  const candidateStart = candidate.startMinute;
+  if (candidateStart === null) return [];
+
   return existing.filter((task) => {
     if (task.id === ignoreId) return false;
+    const taskStart = task.startMinute;
+    if (taskStart === null) return false;
     if (isHourly(task.recurrence)) return false;
     if (isHourly(candidate.recurrence)) return false;
     if (!sharesActiveDay(task, candidate as Task)) return false;
     return intervalsOverlap(
-      candidate.startMinute,
+      candidateStart,
       candidate.endMinute,
-      task.startMinute,
+      taskStart,
       task.endMinute,
     );
   });

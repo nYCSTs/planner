@@ -36,11 +36,15 @@ export interface Task {
   /** Hex/tailwind-friendly accent color used on the timeline block. */
   color: string;
 
-  /** Minutes from midnight, 0–1439. */
-  startMinute: number;
+  /**
+   * Minutes from midnight, 0–1439. When null the task has no scheduled time —
+   * it never appears on the timeline and is listed under "Sem horário" instead.
+   */
+  startMinute: number | null;
   /**
    * Minutes from midnight for the end. When null the task is open-ended and
-   * must be finished manually (see `completedAt`).
+   * must be finished manually (see `completedAt`). Always null when the task
+   * has no start time.
    */
   endMinute: number | null;
 
@@ -94,11 +98,17 @@ export interface ResolvedOccurrence {
   /** Stable key for this occurrence on this day. */
   key: string;
   date: string; // yyyy-MM-dd
+  /**
+   * Minutes from midnight. For unscheduled ("Sem horário") tasks this is -1 and
+   * `scheduled` is false — such occurrences are never placed on the timeline.
+   */
   startMinute: number;
   /** Effective end for layout: real end, manual completion, or end-of-day. */
   endMinute: number;
   /** True when endMinute is implied (open-ended, not yet finished). */
   openEnded: boolean;
+  /** False for tasks without a start time (listed under "Sem horário"). */
+  scheduled: boolean;
   completed: boolean;
 }
 
