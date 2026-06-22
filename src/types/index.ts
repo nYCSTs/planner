@@ -28,11 +28,19 @@ export interface Recurrence {
   everyHourInterval?: number;
 }
 
+/** A checklist item under a task. */
+export interface Subtask {
+  id: string;
+  title: string;
+}
+
 export interface Task {
   id: string;
   title: string;
-  /** Optional longer note. */
-  notes?: string;
+  /** Global description (markdown). Shown on every occurrence. */
+  description?: string;
+  /** Global subtasks. Present on every occurrence of the task. */
+  subtasks?: Subtask[];
   /** Hex/tailwind-friendly accent color used on the timeline block. */
   color: string;
 
@@ -79,6 +87,19 @@ export interface Completion {
   completedAtMinute: number;
 }
 
+/**
+ * A per-day override for a single occurrence of a (usually recurring) task,
+ * keyed by `${taskId}:${dateKey}` in the overrides store. Lets the user add a
+ * note or subtasks that apply only to that day, without touching the global
+ * task. All fields optional — an empty override is the same as none.
+ */
+export interface DayOverride {
+  /** Markdown note shown only on that day. */
+  description?: string;
+  /** Subtasks that exist only on that day. */
+  subtasks?: Subtask[];
+}
+
 export interface Settings {
   theme: "light" | "dark" | "system";
   /** Default minutes-before-start notification lead time. */
@@ -110,6 +131,10 @@ export interface ResolvedOccurrence {
   /** False for tasks without a start time (listed under "Sem horário"). */
   scheduled: boolean;
   completed: boolean;
+  /** True when there's any description (global or this day's override). */
+  hasDescription: boolean;
+  /** True when there's any subtask (global or this day's override). */
+  hasSubtasks: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

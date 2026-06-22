@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ListTodo, Plus } from "lucide-react";
+import { FileText, ListChecks, ListTodo, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { minutesToTime, isHourly } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -49,13 +49,21 @@ function Row({
           onClick={() => onSelect(occ)}
           className="flex min-w-0 flex-1 flex-col text-left"
         >
-          <span
-            className={cn(
-              "truncate text-sm",
-              done && "text-muted-foreground line-through",
+          <span className="flex items-center gap-1">
+            <span
+              className={cn(
+                "truncate text-sm",
+                done && "text-muted-foreground line-through",
+              )}
+            >
+              {occ.task.title}
+            </span>
+            {occ.hasDescription && (
+              <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
             )}
-          >
-            {occ.task.title}
+            {occ.hasSubtasks && (
+              <ListChecks className="h-3 w-3 shrink-0 text-muted-foreground" />
+            )}
           </span>
           {occ.scheduled && (
             <span className="truncate text-[11px] text-muted-foreground">

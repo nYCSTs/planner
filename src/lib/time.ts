@@ -1,5 +1,11 @@
 import { format, parse } from "date-fns";
-import type { Task, Recurrence, ResolvedOccurrence, Weekday } from "@/types";
+import type {
+  DayOverride,
+  Task,
+  Recurrence,
+  ResolvedOccurrence,
+  Weekday,
+} from "@/types";
 
 export const MINUTES_IN_DAY = 24 * 60;
 
@@ -79,6 +85,7 @@ export function resolveOccurrences(
   day: Date,
   completions: Record<string, number>, // key `${taskId}:${dateKey}` -> completedAtMinute
   now?: Date,
+  overrides: Record<string, DayOverride> = {}, // key `${taskId}:${dateKey}`
 ): ResolvedOccurrence[] {
   const key = dateKey(day);
   const isCurrentDay = now !== undefined && dateKey(now) === key;
@@ -87,6 +94,14 @@ export function resolveOccurrences(
 
   for (const task of tasks) {
     if (!taskOccursOn(task, day)) continue;
+
+    const override = overrides[`${task.id}:${key}`];
+    const hasDescription = Boolean(
+      task.description?.trim() || override?.description?.trim(),
+    );
+    const hasSubtasks = Boolean(
+      (task.subtasks?.length ?? 0) > 0 || (override?.subtasks?.length ?? 0) > 0,
+    );
 
     // Unscheduled task: no time, never on the timeline. Resolves once per day so
     // it can be listed and completed per day under "Sem horário".
@@ -101,6 +116,8 @@ export function resolveOccurrences(
         openEnded: false,
         scheduled: false,
         completed: completions[completionKey] !== undefined,
+        hasDescription,
+        hasSubtasks,
       });
       continue;
     }
@@ -137,6 +154,8 @@ export function resolveOccurrences(
           openEnded: duration === null,
           scheduled: true,
           completed: done,
+          hasDescription,
+          hasSubtasks,
         });
       }
       continue;
@@ -163,6 +182,8 @@ export function resolveOccurrences(
       openEnded,
       scheduled: true,
       completed: isCompleted,
+      hasDescription,
+      hasSubtasks,
     });
   }
 

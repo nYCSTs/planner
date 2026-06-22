@@ -1,5 +1,6 @@
 "use client";
 
+import { FileText, ListChecks } from "lucide-react";
 import type { PlacedOccurrence } from "@/lib/layout";
 import { minutesToTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,12 @@ export function TaskBlock({
         <span className={cn("truncate font-medium", completed && "line-through")}>
           {task.title}
         </span>
+        {(occurrence.hasDescription || occurrence.hasSubtasks) && (
+          <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] opacity-70">
+            {occurrence.hasDescription && <FileText className="h-3 w-3" />}
+            {occurrence.hasSubtasks && <ListChecks className="h-3 w-3" />}
+          </span>
+        )}
       </div>
       {!compact && (
         <span className="pl-1 text-[10px] tabular-nums text-muted-foreground">

@@ -1,9 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Task, Settings, ResolvedOccurrence } from "@/types";
+import type {
+  Task,
+  Settings,
+  ResolvedOccurrence,
+  DayOverride,
+  Subtask,
+} from "@/types";
 import { DEFAULT_SETTINGS } from "@/types";
 import { storage } from "@/lib/storage";
+import { dateKey } from "@/lib/time";
 
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -19,6 +26,8 @@ export function usePlanner() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [settings, setSettings] = useState<Settings>(storage.loadSettings());
   const [completions, setCompletions] = useState<Record<string, number>>({});
+  const [overrides, setOverrides] = useState<Record<string, DayOverride>>({});
+  const [subtaskDone, setSubtaskDone] = useState<Record<string, boolean>>({});
 
   // Hydrate once on mount from localStorage (external system).
   useEffect(() => {
@@ -26,6 +35,8 @@ export function usePlanner() {
     setTasks(storage.loadTasks());
     setSettings(storage.loadSettings());
     setCompletions(storage.loadCompletions());
+    setOverrides(storage.loadOverrides());
+    setSubtaskDone(storage.loadSubtaskDone());
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -40,6 +51,12 @@ export function usePlanner() {
   useEffect(() => {
     if (hydrated) storage.saveCompletions(completions);
   }, [completions, hydrated]);
+  useEffect(() => {
+    if (hydrated) storage.saveOverrides(overrides);
+  }, [overrides, hydrated]);
+  useEffect(() => {
+    if (hydrated) storage.saveSubtaskDone(subtaskDone);
+  }, [subtaskDone, hydrated]);
 
   const addTask = useCallback((task: Omit<Task, "id" | "createdAt">) => {
     const full: Task = { ...task, id: uid(), createdAt: new Date().toISOString() };
@@ -77,14 +94,108 @@ export function usePlanner() {
     });
   }, []);
 
+  // --- Per-day overrides (description / subtasks that apply to one day) -----
+
+  /** Patch a single day's override for a task, pruning it when it goes empty. */
+  const patchOverride = useCallback(
+    (taskId: string, day: Date, patch: Partial<DayOverride>) => {
+      const key = `${taskId}:${dateKey(day)}`;
+      setOverrides((prev) => {
+        const merged: DayOverride = { ...prev[key], ...patch };
+        const empty =
+          !merged.description?.trim() && (merged.subtasks?.length ?? 0) === 0;
+        const next = { ...prev };
+        if (empty) delete next[key];
+        else next[key] = merged;
+        return next;
+      });
+    },
+    [],
+  );
+
+  /** Set the day-specific (pontual) description. */
+  const setDayDescription = useCallback(
+    (taskId: string, day: Date, description: string) => {
+      patchOverride(taskId, day, { description });
+    },
+    [patchOverride],
+  );
+
+  /** Add a subtask either globally (task) or just for `day` (override). */
+  const addSubtask = useCallback(
+    (taskId: string, day: Date, title: string, scope: "global" | "day") => {
+      const sub: Subtask = { id: uid(), title };
+      if (scope === "global") {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? { ...t, subtasks: [...(t.subtasks ?? []), sub] }
+              : t,
+          ),
+        );
+      } else {
+        const key = `${taskId}:${dateKey(day)}`;
+        setOverrides((prev) => {
+          const cur = prev[key] ?? {};
+          return {
+            ...prev,
+            [key]: { ...cur, subtasks: [...(cur.subtasks ?? []), sub] },
+          };
+        });
+      }
+    },
+    [],
+  );
+
+  /** Remove a subtask from the global task or a day override. */
+  const removeSubtask = useCallback(
+    (taskId: string, day: Date, subtaskId: string, scope: "global" | "day") => {
+      if (scope === "global") {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? { ...t, subtasks: (t.subtasks ?? []).filter((s) => s.id !== subtaskId) }
+              : t,
+          ),
+        );
+      } else {
+        const key = `${taskId}:${dateKey(day)}`;
+        setOverrides((prev) => {
+          const cur = prev[key];
+          if (!cur) return prev;
+          const subtasks = (cur.subtasks ?? []).filter((s) => s.id !== subtaskId);
+          const merged: DayOverride = { ...cur, subtasks };
+          const empty =
+            !merged.description?.trim() && subtasks.length === 0;
+          const next = { ...prev };
+          if (empty) delete next[key];
+          else next[key] = merged;
+          return next;
+        });
+      }
+    },
+    [],
+  );
+
+  /** Toggle a subtask's done state for a specific day (always per-day). */
+  const toggleSubtaskDone = useCallback((subtaskId: string, day: Date) => {
+    const key = `${subtaskId}:${dateKey(day)}`;
+    setSubtaskDone((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key];
+      else next[key] = true;
+      return next;
+    });
+  }, []);
+
   /** Serialize everything to a JSON backup string. */
   const exportData = useCallback((): string => {
     return JSON.stringify(
-      { version: 1, tasks, settings, completions },
+      { version: 2, tasks, settings, completions, overrides, subtaskDone },
       null,
       2,
     );
-  }, [tasks, settings, completions]);
+  }, [tasks, settings, completions, overrides, subtaskDone]);
 
   /**
    * Replace state from a backup JSON string. Validates the shape loosely and
@@ -96,6 +207,8 @@ export function usePlanner() {
       tasks?: unknown;
       settings?: unknown;
       completions?: unknown;
+      overrides?: unknown;
+      subtaskDone?: unknown;
     };
     if (!Array.isArray(parsed.tasks)) {
       throw new Error("Backup inválido: 'tasks' ausente ou malformado.");
@@ -107,6 +220,17 @@ export function usePlanner() {
     if (parsed.completions && typeof parsed.completions === "object") {
       setCompletions(parsed.completions as Record<string, number>);
     }
+    // overrides/subtaskDone are optional (older backups won't have them).
+    setOverrides(
+      parsed.overrides && typeof parsed.overrides === "object"
+        ? (parsed.overrides as Record<string, DayOverride>)
+        : {},
+    );
+    setSubtaskDone(
+      parsed.subtaskDone && typeof parsed.subtaskDone === "object"
+        ? (parsed.subtaskDone as Record<string, boolean>)
+        : {},
+    );
   }, []);
 
   return {
@@ -114,11 +238,17 @@ export function usePlanner() {
     tasks,
     settings,
     completions,
+    overrides,
+    subtaskDone,
     addTask,
     updateTask,
     deleteTask,
     updateSettings,
     toggleDone,
+    setDayDescription,
+    addSubtask,
+    removeSubtask,
+    toggleSubtaskDone,
     exportData,
     importData,
   };

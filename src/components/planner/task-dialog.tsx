@@ -76,6 +76,7 @@ export function TaskDialog({
   const editing = draft?.task;
 
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [color, setColor] = useState(TASK_COLORS[0]);
   const [hasTime, setHasTime] = useState(true);
   const [start, setStart] = useState("09:00");
@@ -96,6 +97,7 @@ export function TaskDialog({
     if (editing) {
       const scheduled = editing.startMinute !== null;
       setTitle(editing.title);
+      setDescription(editing.description ?? "");
       setColor(editing.color);
       setHasTime(scheduled);
       setStart(minutesToTime(editing.startMinute ?? 540));
@@ -110,6 +112,7 @@ export function TaskDialog({
       setNotifyEnd(editing.notifyBeforeEnd ?? defaultNotifyEnd);
     } else {
       setTitle("");
+      setDescription("");
       setColor(randomColor());
       setHasTime(draft.startMinute !== null);
       setStart(minutesToTime(draft.startMinute ?? 540));
@@ -174,6 +177,9 @@ export function TaskDialog({
     onSave(
       {
         title: title.trim(),
+        description: description.trim() || undefined,
+        // Subtasks are managed in the detail view; preserve them here.
+        subtasks: editing?.subtasks,
         color,
         startMinute,
         endMinute,
@@ -229,6 +235,18 @@ export function TaskDialog({
                 />
               ))}
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Descrição (markdown)</Label>
+            <textarea
+              id="description"
+              value={description}
+              placeholder="Suporta markdown: **negrito**, listas, links…"
+              rows={3}
+              onChange={(e) => setDescription(e.target.value)}
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
           </div>
 
           <div className="space-y-1.5">

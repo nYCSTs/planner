@@ -1,10 +1,12 @@
-import type { Task, Settings } from "@/types";
+import type { Task, Settings, DayOverride } from "@/types";
 import { DEFAULT_SETTINGS } from "@/types";
 
 const KEYS = {
   tasks: "planner.tasks",
   settings: "planner.settings",
   completions: "planner.completions",
+  overrides: "planner.overrides",
+  subtaskDone: "planner.subtaskDone",
 } as const;
 
 function read<T>(key: string, fallback: T): T {
@@ -41,4 +43,14 @@ export const storage = {
     read<Record<string, number>>(KEYS.completions, {}),
   saveCompletions: (completions: Record<string, number>) =>
     write(KEYS.completions, completions),
+
+  loadOverrides: (): Record<string, DayOverride> =>
+    read<Record<string, DayOverride>>(KEYS.overrides, {}),
+  saveOverrides: (overrides: Record<string, DayOverride>) =>
+    write(KEYS.overrides, overrides),
+
+  loadSubtaskDone: (): Record<string, boolean> =>
+    read<Record<string, boolean>>(KEYS.subtaskDone, {}),
+  saveSubtaskDone: (done: Record<string, boolean>) =>
+    write(KEYS.subtaskDone, done),
 };

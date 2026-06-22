@@ -23,7 +23,14 @@ import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
 import { useNotifications } from "@/hooks/use-notifications";
 import { resolveOccurrences, nowMinutes } from "@/lib/time";
-import type { ResolvedOccurrence } from "@/types";
+import type { ResolvedOccurrence, Task } from "@/types";
+import { TaskDetail } from "@/components/planner/task-detail";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function Home() {
   const planner = usePlanner();
@@ -31,6 +38,7 @@ export default function Home() {
   const { setTheme } = useTheme();
   const [day, setDay] = useState<Date>(() => new Date());
   const [draft, setDraft] = useState<TaskDraft | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
@@ -41,8 +49,15 @@ export default function Home() {
   }, [planner.hydrated, planner.settings.theme, setTheme]);
 
   const occurrences = useMemo(
-    () => resolveOccurrences(planner.tasks, day, planner.completions, now),
-    [planner.tasks, day, planner.completions, now],
+    () =>
+      resolveOccurrences(
+        planner.tasks,
+        day,
+        planner.completions,
+        now,
+        planner.overrides,
+      ),
+    [planner.tasks, day, planner.completions, now, planner.overrides],
   );
 
   // Timeline only shows scheduled occurrences; the list shows both lanes.
@@ -71,10 +86,19 @@ export default function Home() {
 
   const openCreate = (startMinute: number) => setDraft({ startMinute });
 
-  const openEdit = (occ: ResolvedOccurrence) =>
-    setDraft({ startMinute: occ.task.startMinute, task: occ.task });
+  // Clicking an occurrence opens its detail view; Edit (inside) opens the form.
+  const openDetail = (occ: ResolvedOccurrence) => setDetailId(occ.task.id);
+
+  const openEditTask = (task: Task) =>
+    setDraft({ startMinute: task.startMinute, task });
 
   const toggleDone = (occ: ResolvedOccurrence) => planner.toggleDone(occ);
+
+  // The occurrence currently shown in the detail dialog (today/day-scoped).
+  const detailOcc = useMemo(
+    () => occurrences.find((o) => o.task.id === detailId) ?? null,
+    [occurrences, detailId],
+  );
 
   return (
     <div className="flex h-screen flex-col">
@@ -156,7 +180,7 @@ export default function Home() {
               scheduled={scheduledOccurrences}
               unscheduled={unscheduledOccurrences}
               onToggleDone={toggleDone}
-              onSelect={openEdit}
+              onSelect={openDetail}
               onAddUnscheduled={() => setDraft({ startMinute: null })}
             />
           )}
@@ -168,7 +192,7 @@ export default function Home() {
               day={day}
               now={now}
               occurrences={scheduledOccurrences}
-              onOccurrenceClick={openEdit}
+              onOccurrenceClick={openDetail}
               onToggleDone={toggleDone}
               onSlotClick={openCreate}
             />
@@ -204,6 +228,42 @@ export default function Home() {
         }}
         onDelete={planner.deleteTask}
       />
+
+      <Dialog
+        open={detailOcc !== null}
+        onOpenChange={(o) => !o && setDetailId(null)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Detalhes da tarefa</DialogTitle>
+          </DialogHeader>
+          {detailOcc && (
+            <TaskDetail
+              occ={detailOcc}
+              day={day}
+              override={planner.overrides[`${detailOcc.task.id}:${detailOcc.date}`]}
+              subtaskDone={planner.subtaskDone}
+              onEdit={() => {
+                const task = detailOcc.task;
+                setDetailId(null);
+                openEditTask(task);
+              }}
+              onSetDayDescription={(description) =>
+                planner.setDayDescription(detailOcc.task.id, day, description)
+              }
+              onAddSubtask={(title, scope) =>
+                planner.addSubtask(detailOcc.task.id, day, title, scope)
+              }
+              onRemoveSubtask={(subtaskId, scope) =>
+                planner.removeSubtask(detailOcc.task.id, day, subtaskId, scope)
+              }
+              onToggleSubtask={(subtaskId) =>
+                planner.toggleSubtaskDone(subtaskId, day)
+              }
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <SettingsSheet
         open={settingsOpen}
