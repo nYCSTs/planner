@@ -177,6 +177,48 @@ export function usePlanner() {
     [],
   );
 
+  /** Rename a subtask in the global task or a day override. */
+  const renameSubtask = useCallback(
+    (
+      taskId: string,
+      day: Date,
+      subtaskId: string,
+      title: string,
+      scope: "global" | "day",
+    ) => {
+      if (scope === "global") {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: (t.subtasks ?? []).map((s) =>
+                    s.id === subtaskId ? { ...s, title } : s,
+                  ),
+                }
+              : t,
+          ),
+        );
+      } else {
+        const key = `${taskId}:${dateKey(day)}`;
+        setOverrides((prev) => {
+          const cur = prev[key];
+          if (!cur) return prev;
+          return {
+            ...prev,
+            [key]: {
+              ...cur,
+              subtasks: (cur.subtasks ?? []).map((s) =>
+                s.id === subtaskId ? { ...s, title } : s,
+              ),
+            },
+          };
+        });
+      }
+    },
+    [],
+  );
+
   /** Toggle a subtask's done state for a specific day (always per-day). */
   const toggleSubtaskDone = useCallback((subtaskId: string, day: Date) => {
     const key = `${subtaskId}:${dateKey(day)}`;
@@ -248,6 +290,7 @@ export function usePlanner() {
     setDayDescription,
     addSubtask,
     removeSubtask,
+    renameSubtask,
     toggleSubtaskDone,
     exportData,
     importData,

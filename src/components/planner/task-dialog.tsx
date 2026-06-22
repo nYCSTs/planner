@@ -201,7 +201,7 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{editing ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
         </DialogHeader>
@@ -458,10 +458,7 @@ export function TaskDialog({
               variant="ghost"
               size="icon"
               className="text-destructive"
-              onClick={() => {
-                onDelete(editing.id);
-                onClose();
-              }}
+              onClick={() => onDelete(editing.id)}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

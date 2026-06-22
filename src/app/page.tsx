@@ -39,6 +39,9 @@ export default function Home() {
   const [day, setDay] = useState<Date>(() => new Date());
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  // When the edit form was opened from a detail view, remember the task so we
+  // can return to detail on cancel/close instead of closing everything.
+  const [editReturnId, setEditReturnId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
@@ -89,8 +92,20 @@ export default function Home() {
   // Clicking an occurrence opens its detail view; Edit (inside) opens the form.
   const openDetail = (occ: ResolvedOccurrence) => setDetailId(occ.task.id);
 
-  const openEditTask = (task: Task) =>
+  const openEditTask = (task: Task, fromDetail = false) => {
+    if (fromDetail) setEditReturnId(task.id);
     setDraft({ startMinute: task.startMinute, task });
+  };
+
+  // Close the edit form; if it was opened from detail and that task still
+  // exists (i.e. wasn't deleted), return to that detail.
+  const closeDraft = () => {
+    setDraft(null);
+    setEditReturnId(null);
+    if (editReturnId && planner.tasks.some((t) => t.id === editReturnId)) {
+      setDetailId(editReturnId);
+    }
+  };
 
   const toggleDone = (occ: ResolvedOccurrence) => planner.toggleDone(occ);
 
@@ -221,19 +236,24 @@ export default function Home() {
         existingTasks={planner.tasks}
         defaultNotifyStart={planner.settings.notifyBeforeStart}
         defaultNotifyEnd={planner.settings.notifyBeforeEnd}
-        onClose={() => setDraft(null)}
+        onClose={closeDraft}
         onSave={(task, id) => {
           if (id) planner.updateTask(id, task);
           else planner.addTask(task);
         }}
-        onDelete={planner.deleteTask}
+        onDelete={(id) => {
+          planner.deleteTask(id);
+          setDraft(null);
+          setEditReturnId(null); // deleted task has no detail to return to
+          setDetailId(null);
+        }}
       />
 
       <Dialog
         open={detailOcc !== null}
         onOpenChange={(o) => !o && setDetailId(null)}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Detalhes da tarefa</DialogTitle>
           </DialogHeader>
@@ -246,7 +266,7 @@ export default function Home() {
               onEdit={() => {
                 const task = detailOcc.task;
                 setDetailId(null);
-                openEditTask(task);
+                openEditTask(task, true);
               }}
               onSetDayDescription={(description) =>
                 planner.setDayDescription(detailOcc.task.id, day, description)
@@ -256,6 +276,9 @@ export default function Home() {
               }
               onRemoveSubtask={(subtaskId, scope) =>
                 planner.removeSubtask(detailOcc.task.id, day, subtaskId, scope)
+              }
+              onRenameSubtask={(subtaskId, title, scope) =>
+                planner.renameSubtask(detailOcc.task.id, day, subtaskId, title, scope)
               }
               onToggleSubtask={(subtaskId) =>
                 planner.toggleSubtaskDone(subtaskId, day)

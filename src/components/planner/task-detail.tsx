@@ -26,6 +26,7 @@ interface TaskDetailProps {
   onSetDayDescription: (description: string) => void;
   onAddSubtask: (title: string, scope: "global" | "day") => void;
   onRemoveSubtask: (subtaskId: string, scope: "global" | "day") => void;
+  onRenameSubtask: (subtaskId: string, title: string, scope: "global" | "day") => void;
   onToggleSubtask: (subtaskId: string) => void;
 }
 
@@ -44,12 +45,47 @@ function SubtaskRow({
   done,
   onToggle,
   onRemove,
+  onRename,
 }: {
   sub: Subtask;
   done: boolean;
   onToggle: () => void;
   onRemove: () => void;
+  onRename: (title: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(sub.title);
+
+  const save = () => {
+    const v = value.trim();
+    if (v && v !== sub.title) onRename(v);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <li className="flex items-center gap-1.5 py-0.5">
+        <Input
+          autoFocus
+          value={value}
+          className="h-8 text-sm"
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") {
+              setValue(sub.title);
+              setEditing(false);
+            }
+          }}
+          onBlur={save}
+        />
+        <Button size="sm" className="h-8" onClick={save}>
+          Salvar
+        </Button>
+      </li>
+    );
+  }
+
   return (
     <li className="group flex items-center gap-2.5 py-0.5">
       <button
@@ -63,9 +99,30 @@ function SubtaskRow({
       >
         {done && <span className="text-xs leading-none">✅</span>}
       </button>
-      <span className={cn("flex-1 text-sm", done && "text-muted-foreground line-through")}>
+      <button
+        type="button"
+        onClick={() => {
+          setValue(sub.title);
+          setEditing(true);
+        }}
+        className={cn(
+          "flex-1 truncate text-left text-sm",
+          done && "text-muted-foreground line-through",
+        )}
+      >
         {sub.title}
-      </span>
+      </button>
+      <button
+        type="button"
+        aria-label="Editar subtarefa"
+        onClick={() => {
+          setValue(sub.title);
+          setEditing(true);
+        }}
+        className="opacity-0 transition group-hover:opacity-100"
+      >
+        <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+      </button>
       <button
         type="button"
         aria-label="Remover subtarefa"
@@ -138,6 +195,7 @@ export function TaskDetail({
   onSetDayDescription,
   onAddSubtask,
   onRemoveSubtask,
+  onRenameSubtask,
   onToggleSubtask,
 }: TaskDetailProps) {
   const { task } = occ;
@@ -171,7 +229,7 @@ export function TaskDetail({
             {recurrenceSummary(occ)}
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={onEdit}>
+        <Button size="sm" variant="outline" className="mr-8" onClick={onEdit}>
           <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
         </Button>
       </div>
@@ -273,6 +331,7 @@ export function TaskDetail({
                   done={isDone(s.id)}
                   onToggle={() => onToggleSubtask(s.id)}
                   onRemove={() => onRemoveSubtask(s.id, "global")}
+                  onRename={(t) => onRenameSubtask(s.id, t, "global")}
                 />
               ))}
             </ul>
@@ -293,6 +352,7 @@ export function TaskDetail({
                   done={isDone(s.id)}
                   onToggle={() => onToggleSubtask(s.id)}
                   onRemove={() => onRemoveSubtask(s.id, "day")}
+                  onRename={(t) => onRenameSubtask(s.id, t, "day")}
                 />
               ))}
             </ul>
