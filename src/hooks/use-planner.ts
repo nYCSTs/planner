@@ -20,12 +20,14 @@ export function usePlanner() {
   const [settings, setSettings] = useState<Settings>(storage.loadSettings());
   const [completions, setCompletions] = useState<Record<string, number>>({});
 
-  // Hydrate once on mount.
+  // Hydrate once on mount from localStorage (external system).
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setTasks(storage.loadTasks());
     setSettings(storage.loadSettings());
     setCompletions(storage.loadCompletions());
     setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   // Persist on change (after hydration).

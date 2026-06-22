@@ -26,6 +26,7 @@ export function Pomodoro({ workMinutes, breakMinutes, soundEnabled }: PomodoroPr
 
   // Reset remaining when durations change and timer isn't running.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!running) setRemaining(phaseLength(phase));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workMinutes, breakMinutes]);

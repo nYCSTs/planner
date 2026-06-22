@@ -33,13 +33,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Syncing React state to external systems (DOM class + matchMedia).
+    /* eslint-disable react-hooks/set-state-in-effect */
     apply(theme);
     if (theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => apply("system");
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [theme]);
 
   const setTheme = (t: Theme) => {

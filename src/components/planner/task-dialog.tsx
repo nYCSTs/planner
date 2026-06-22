@@ -87,6 +87,7 @@ export function TaskDialog({
 
   // Reset form whenever a new draft opens.
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!open || !draft) return;
     if (editing) {
       setTitle(editing.title);
@@ -109,6 +110,7 @@ export function TaskDialog({
       setNotifyStart(defaultNotifyStart);
       setNotifyEnd(defaultNotifyEnd);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, draft, editing, defaultNotifyStart, defaultNotifyEnd]);
 
   const startMinute = timeToMinutes(start);
@@ -263,6 +265,12 @@ export function TaskDialog({
             </div>
           </div>
 
+          {kind === "hourly" && (
+            <p className="text-xs text-muted-foreground">
+              Repete toda hora. Só o minuto do horário de início é usado (ex:
+              09:15 → :15 de cada hora).
+            </p>
+          )}
           {!hasEnd && (
             <p className="text-xs text-muted-foreground">
               Sem término definido — você finaliza manualmente pela timeline.

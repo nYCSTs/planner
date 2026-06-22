@@ -73,6 +73,13 @@ export function Timeline({
           </div>
         )}
 
+        {/* Empty-day hint */}
+        {placed.length === 0 && (
+          <div className="pointer-events-none absolute inset-x-0 top-1/3 z-10 text-center text-sm text-muted-foreground">
+            Nenhuma tarefa neste dia. Clique em um horário para adicionar.
+          </div>
+        )}
+
         {/* Task blocks */}
         {placed.map((p) => (
           <TaskBlock

@@ -38,6 +38,8 @@ export function useNotifications(
   const firedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    // Reading the browser's current Notification permission (external system).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPermission(getPermission());
   }, []);
 
