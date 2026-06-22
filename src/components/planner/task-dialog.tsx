@@ -200,7 +200,7 @@ export function TaskDialog({
           everyHourInterval: hourly ? Math.max(1, everyHourInterval) : undefined,
         },
         date: kind === "once" ? dateKey(day) : undefined,
-        hideElapsed,
+        hideElapsed: hourly ? false : hideElapsed,
         notifyBeforeStart: notifyStart,
         notifyBeforeEnd: notifyEnd,
         soundEnabled: soundOn,
@@ -389,7 +389,7 @@ export function TaskDialog({
             </div>
           )}
 
-          {hasTime && (
+          {hasTime && !everyHour && (
             <div className="flex items-center justify-between rounded-md border px-3 py-2">
               <div>
                 <Label htmlFor="hideElapsed" className="text-sm font-normal">

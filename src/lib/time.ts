@@ -188,12 +188,17 @@ export function resolveOccurrences(
   }
 
   // Hide occurrences whose end has already passed today (per-task opt-in).
-  // Genuinely open-ended non-hourly tasks have endMinute = MINUTES_IN_DAY, so
-  // they survive until day's end; hourly slots have a concrete per-hour end.
+  // Hourly tasks are never hidden this way — each slot is an independent
+  // occurrence and elapsed slots should remain visible (pending or late).
   const visible = isCurrentDay
     ? result.filter(
         (o) =>
-          !(o.scheduled && o.task.hideElapsed && o.endMinute <= currentMinute),
+          !(
+            o.scheduled &&
+            o.task.hideElapsed &&
+            !isHourly(o.task.recurrence) &&
+            o.endMinute <= currentMinute
+          ),
       )
     : result;
 
