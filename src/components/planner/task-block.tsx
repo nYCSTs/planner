@@ -55,9 +55,13 @@ export function TaskBlock({
         }
       }}
       className={cn(
-        "group absolute z-20 flex cursor-pointer flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-xs shadow-sm transition-all hover:z-40 hover:shadow-md",
+        "group absolute flex cursor-pointer flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-xs shadow-sm transition-all hover:shadow-md",
+        // Overlay (hourly) tasks always sit above regular ones, even on hover,
+        // so they stay clickable instead of the background block stealing it.
         completed && "opacity-70",
-        overlay && "z-30 border-dashed",
+        overlay
+          ? "z-30 border-dashed hover:z-40"
+          : "z-10 hover:z-20",
       )}
       style={{
         top,
