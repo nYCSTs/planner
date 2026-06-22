@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addDays, format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Settings as SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SettingsSheet } from "@/components/planner/settings-sheet";
+import { useTheme } from "@/components/theme-provider";
 import { Timeline } from "@/components/planner/timeline";
 import { TaskDialog, type TaskDraft } from "@/components/planner/task-dialog";
 import { NowPanel } from "@/components/planner/now-panel";
@@ -19,8 +21,15 @@ import type { ResolvedOccurrence } from "@/types";
 export default function Home() {
   const planner = usePlanner();
   const now = useNow(15_000);
+  const { setTheme } = useTheme();
   const [day, setDay] = useState<Date>(() => new Date());
   const [draft, setDraft] = useState<TaskDraft | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Keep the live theme in sync with persisted settings after hydration.
+  useEffect(() => {
+    if (planner.hydrated) setTheme(planner.settings.theme);
+  }, [planner.hydrated, planner.settings.theme, setTheme]);
 
   const occurrences = useMemo(
     () => resolveOccurrences(planner.tasks, day, planner.completions),
@@ -73,9 +82,14 @@ export default function Home() {
           </Button>
         </div>
 
-        <Button size="sm" onClick={() => openCreate(now.getHours() * 60)}>
-          <Plus className="mr-1 h-4 w-4" /> Nova tarefa
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => openCreate(now.getHours() * 60)}>
+            <Plus className="mr-1 h-4 w-4" /> Nova tarefa
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}>
+            <SettingsIcon className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       {planner.hydrated &&
@@ -137,6 +151,13 @@ export default function Home() {
           else planner.addTask(task);
         }}
         onDelete={planner.deleteTask}
+      />
+
+      <SettingsSheet
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={planner.settings}
+        onChange={planner.updateSettings}
       />
     </div>
   );
