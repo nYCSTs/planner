@@ -11,13 +11,14 @@ import { NowPanel } from "@/components/planner/now-panel";
 import { Pomodoro } from "@/components/planner/pomodoro";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
+import { useNotifications } from "@/hooks/use-notifications";
 import { resolveOccurrences, nowMinutes } from "@/lib/time";
 import { activeAt } from "@/lib/active";
 import type { ResolvedOccurrence } from "@/types";
 
 export default function Home() {
   const planner = usePlanner();
-  const now = useNow();
+  const now = useNow(15_000);
   const [day, setDay] = useState<Date>(() => new Date());
   const [draft, setDraft] = useState<TaskDraft | null>(null);
 
@@ -34,6 +35,12 @@ export default function Home() {
   const activeState = useMemo(
     () => activeAt(todayOccurrences, nowMinutes(now)),
     [todayOccurrences, now],
+  );
+
+  const { permission, requestPermission } = useNotifications(
+    todayOccurrences,
+    now,
+    planner.settings,
   );
 
   const openCreate = (startMinute: number) => setDraft({ startMinute });
@@ -70,6 +77,17 @@ export default function Home() {
           <Plus className="mr-1 h-4 w-4" /> Nova tarefa
         </Button>
       </header>
+
+      {planner.hydrated &&
+        planner.settings.notificationsEnabled &&
+        permission === "default" && (
+          <button
+            onClick={requestPermission}
+            className="border-b bg-amber-500/10 px-4 py-2 text-left text-xs text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
+          >
+            Ative as notificações do navegador para receber avisos das tarefas →
+          </button>
+        )}
 
       <main className="flex min-h-0 flex-1">
         <section className="min-w-0 flex-1 px-4 py-2">
