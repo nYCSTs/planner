@@ -97,14 +97,20 @@ export default function Home() {
     setDraft({ startMinute: task.startMinute, task });
   };
 
-  // Close the edit form; if it was opened from detail and that task still
-  // exists (i.e. wasn't deleted), return to that detail.
+  // X / Cancel: close the edit form entirely (does not return to detail).
   const closeDraft = () => {
     setDraft(null);
     setEditReturnId(null);
+  };
+
+  // Back (top-left): return to the detail the edit was opened from, if it still
+  // exists. Shown only when the edit came from a detail view.
+  const backToDetail = () => {
+    setDraft(null);
     if (editReturnId && planner.tasks.some((t) => t.id === editReturnId)) {
       setDetailId(editReturnId);
     }
+    setEditReturnId(null);
   };
 
   const toggleDone = (occ: ResolvedOccurrence) => planner.toggleDone(occ);
@@ -237,6 +243,7 @@ export default function Home() {
         defaultNotifyStart={planner.settings.notifyBeforeStart}
         defaultNotifyEnd={planner.settings.notifyBeforeEnd}
         onClose={closeDraft}
+        onBack={editReturnId ? backToDetail : undefined}
         onSave={(task, id) => {
           if (id) planner.updateTask(id, task);
           else planner.addTask(task);
@@ -253,7 +260,7 @@ export default function Home() {
         open={detailOcc !== null}
         onOpenChange={(o) => !o && setDetailId(null)}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
           <DialogHeader className="sr-only">
             <DialogTitle>Detalhes da tarefa</DialogTitle>
           </DialogHeader>

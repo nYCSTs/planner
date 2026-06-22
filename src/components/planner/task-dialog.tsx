@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronLeft, Eye, Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { TASK_COLORS, randomColor } from "@/lib/colors";
 import { dateKey, minutesToTime, nowMinutes, timeToMinutes } from "@/lib/time";
 import { findConflicts } from "@/lib/conflicts";
+import { Markdown } from "@/components/markdown";
 import type { RecurrenceKind, Task, Weekday } from "@/types";
 
 const WEEKDAY_LABELS: { value: Weekday; label: string }[] = [
@@ -60,6 +61,8 @@ interface TaskDialogProps {
   onClose: () => void;
   onSave: (task: Omit<Task, "id" | "createdAt">, id?: string) => void;
   onDelete?: (id: string) => void;
+  /** When set, shows a back button (top-left) instead of just closing. */
+  onBack?: () => void;
 }
 
 export function TaskDialog({
@@ -72,6 +75,7 @@ export function TaskDialog({
   onClose,
   onSave,
   onDelete,
+  onBack,
 }: TaskDialogProps) {
   const editing = draft?.task;
 
@@ -89,6 +93,8 @@ export function TaskDialog({
   const [hideElapsed, setHideElapsed] = useState(false);
   const [notifyStart, setNotifyStart] = useState<number>(defaultNotifyStart);
   const [notifyEnd, setNotifyEnd] = useState<number>(defaultNotifyEnd);
+  const [soundOn, setSoundOn] = useState(true);
+  const [descPreview, setDescPreview] = useState(false);
 
   // Reset form whenever a new draft opens.
   useEffect(() => {
@@ -110,6 +116,8 @@ export function TaskDialog({
       setHideElapsed(editing.hideElapsed ?? false);
       setNotifyStart(editing.notifyBeforeStart ?? defaultNotifyStart);
       setNotifyEnd(editing.notifyBeforeEnd ?? defaultNotifyEnd);
+      setSoundOn(editing.soundEnabled ?? true);
+      setDescPreview(Boolean(editing.description?.trim()));
     } else {
       setTitle("");
       setDescription("");
@@ -125,6 +133,8 @@ export function TaskDialog({
       setHideElapsed(false);
       setNotifyStart(defaultNotifyStart);
       setNotifyEnd(defaultNotifyEnd);
+      setSoundOn(true);
+      setDescPreview(false);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, draft, editing, defaultNotifyStart, defaultNotifyEnd]);
@@ -193,6 +203,7 @@ export function TaskDialog({
         hideElapsed,
         notifyBeforeStart: notifyStart,
         notifyBeforeEnd: notifyEnd,
+        soundEnabled: soundOn,
       },
       editing?.id,
     );
@@ -201,8 +212,17 @@ export function TaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
         <DialogHeader>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="-ml-1 flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" /> Voltar
+            </button>
+          )}
           <DialogTitle>{editing ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
         </DialogHeader>
 
@@ -238,15 +258,48 @@ export function TaskDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="description">Descrição (markdown)</Label>
-            <textarea
-              id="description"
-              value={description}
-              placeholder="Suporta markdown: **negrito**, listas, links…"
-              rows={3}
-              onChange={(e) => setDescription(e.target.value)}
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">Descrição (markdown)</Label>
+              <button
+                type="button"
+                onClick={() => setDescPreview((p) => !p)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {descPreview ? (
+                  <>
+                    <Pencil className="h-3.5 w-3.5" /> Editar
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-3.5 w-3.5" /> Pré-visualizar
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <textarea
+                id="description"
+                value={description}
+                placeholder="Suporta markdown: **negrito**, listas, links…"
+                rows={5}
+                onChange={(e) => setDescription(e.target.value)}
+                className={cn(
+                  "flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  !descPreview && "sm:col-span-2",
+                )}
+              />
+              {descPreview && (
+                <div className="min-h-24 overflow-y-auto rounded-md border border-dashed bg-muted/30 px-3 py-2">
+                  {description.trim() ? (
+                    <Markdown>{description}</Markdown>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Pré-visualização aparece aqui.
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -351,6 +404,20 @@ export function TaskDialog({
                 checked={hideElapsed}
                 onCheckedChange={setHideElapsed}
               />
+            </div>
+          )}
+
+          {hasTime && (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <Label htmlFor="soundOn" className="text-sm font-normal">
+                  Som ao notificar
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Toca um alerta sonoro nas notificações desta tarefa.
+                </p>
+              </div>
+              <Switch id="soundOn" checked={soundOn} onCheckedChange={setSoundOn} />
             </div>
           )}
 

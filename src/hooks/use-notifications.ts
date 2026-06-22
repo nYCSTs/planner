@@ -59,6 +59,7 @@ export function useNotifications(
       if (!occ.scheduled) continue; // unscheduled tasks have no time to notify
       const leadStart = occ.task.notifyBeforeStart ?? settings.notifyBeforeStart;
       const leadEnd = occ.task.notifyBeforeEnd ?? settings.notifyBeforeEnd;
+      const sound = occ.task.soundEnabled ?? settings.soundEnabled;
 
       // About to start. With lead 0 this fires exactly at the start minute;
       // with lead N it fires once within the N-minute window before start.
@@ -74,7 +75,7 @@ export function useNotifications(
         notify(
           remaining <= 0 ? "Começando agora" : `Começa em ${remaining} min`,
           occ.task.title,
-          settings.soundEnabled,
+          sound,
         );
       }
 
@@ -92,7 +93,7 @@ export function useNotifications(
           notify(
             remaining <= 0 ? "Terminando agora" : `Termina em ${remaining} min`,
             occ.task.title,
-            settings.soundEnabled,
+            sound,
           );
         }
       }

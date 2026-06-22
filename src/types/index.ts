@@ -67,6 +67,8 @@ export interface Task {
   /** Lead time overrides (minutes). Falls back to global settings when undefined. */
   notifyBeforeStart?: number;
   notifyBeforeEnd?: number;
+  /** Per-task sound override for notifications. Falls back to global when undefined. */
+  soundEnabled?: boolean;
 
   /**
    * When true, occurrences whose end time has already elapsed are hidden — but

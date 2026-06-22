@@ -106,7 +106,7 @@ function SubtaskRow({
           setEditing(true);
         }}
         className={cn(
-          "flex-1 truncate text-left text-sm",
+          "min-w-0 flex-1 break-words text-left text-sm",
           done && "text-muted-foreground line-through",
         )}
       >
@@ -213,13 +213,22 @@ export function TaskDetail({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-2">
+      {/* Top bar: edit (left) + close handled by the dialog's X (right) */}
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" onClick={onEdit}>
+          <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
+        </Button>
+      </div>
+
+      <div className="flex items-start gap-2 pr-8">
         <span
           className="mt-1 h-3 w-3 shrink-0 rounded-full"
           style={{ backgroundColor: task.color }}
         />
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold leading-tight">{task.title}</h2>
+          <h2 className="break-words text-base font-semibold leading-tight">
+            {task.title}
+          </h2>
           <p className="text-xs text-muted-foreground">
             {occ.scheduled
               ? `${minutesToTime(occ.startMinute)}${
@@ -229,9 +238,6 @@ export function TaskDetail({
             {recurrenceSummary(occ)}
           </p>
         </div>
-        <Button size="sm" variant="outline" className="mr-8" onClick={onEdit}>
-          <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
-        </Button>
       </div>
 
       {/* Descriptions */}
