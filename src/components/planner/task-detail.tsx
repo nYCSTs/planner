@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { GitFork, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
@@ -23,6 +23,7 @@ interface TaskDetailProps {
   override: DayOverride | undefined;
   subtaskDone: Record<string, boolean>;
   onEdit: () => void;
+  onFork: () => void;
   onSetDayDescription: (description: string) => void;
   onAddSubtask: (title: string, scope: "global" | "day") => void;
   onRemoveSubtask: (subtaskId: string, scope: "global" | "day") => void;
@@ -192,6 +193,7 @@ export function TaskDetail({
   override,
   subtaskDone,
   onEdit,
+  onFork,
   onSetDayDescription,
   onAddSubtask,
   onRemoveSubtask,
@@ -213,10 +215,13 @@ export function TaskDetail({
 
   return (
     <div className="space-y-4">
-      {/* Top bar: edit (left) + close handled by the dialog's X (right) */}
+      {/* Top bar: actions (left) + close handled by the dialog's X (right) */}
       <div className="flex items-center gap-2">
         <Button size="sm" variant="outline" onClick={onEdit}>
           <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onFork}>
+          <GitFork className="mr-1 h-3.5 w-3.5" /> Duplicar p/ outro horário
         </Button>
       </div>
 

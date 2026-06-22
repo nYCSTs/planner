@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale";
 import {
   ChevronLeft,
   ChevronRight,
+  GitFork,
   ListTodo,
   Plus,
   Settings as SettingsIcon,
@@ -18,6 +19,7 @@ import { useTheme } from "@/components/theme-provider";
 import { Timeline } from "@/components/planner/timeline";
 import { TaskDialog, type TaskDraft } from "@/components/planner/task-dialog";
 import { TaskList } from "@/components/planner/task-list";
+import { ForkDialog } from "@/components/planner/fork-dialog";
 import { Pomodoro } from "@/components/planner/pomodoro";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
@@ -45,6 +47,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
+  const [forkOpen, setForkOpen] = useState(false);
 
   // Keep the live theme in sync with persisted settings after hydration.
   useEffect(() => {
@@ -121,6 +124,14 @@ export default function Home() {
     endMinute: number | null,
   ) => planner.updateTask(occ.task.id, { startMinute, endMinute });
 
+  // Fork a chosen task into a new copy for the current day, then open it in the
+  // edit form so the user sets the new time.
+  const handleFork = (sourceId: string) => {
+    const forked = planner.forkTask(sourceId, day, day);
+    setForkOpen(false);
+    if (forked) setDraft({ startMinute: null, task: forked });
+  };
+
   // The occurrence currently shown in the detail dialog (today/day-scoped).
   const detailOcc = useMemo(
     () => occurrences.find((o) => o.task.id === detailId) ?? null,
@@ -169,6 +180,15 @@ export default function Home() {
         <div className="flex items-center gap-1">
           <Button size="sm" onClick={() => openCreate(nowMinutes(now))}>
             <Plus className="mr-1 h-4 w-4" /> Nova tarefa
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setForkOpen(true)}
+            aria-label="Duplicar de outra tarefa"
+            title="Duplicar de outra tarefa"
+          >
+            <GitFork className="h-4 w-4" />
           </Button>
           <Button
             variant={pomodoroOpen ? "secondary" : "ghost"}
@@ -282,6 +302,11 @@ export default function Home() {
                 setDetailId(null);
                 openEditTask(task, true);
               }}
+              onFork={() => {
+                const sourceId = detailOcc.task.id;
+                setDetailId(null);
+                handleFork(sourceId);
+              }}
               onSetDayDescription={(description) =>
                 planner.setDayDescription(detailOcc.task.id, day, description)
               }
@@ -301,6 +326,13 @@ export default function Home() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ForkDialog
+        open={forkOpen}
+        tasks={planner.tasks}
+        onClose={() => setForkOpen(false)}
+        onPick={handleFork}
+      />
 
       <SettingsSheet
         open={settingsOpen}

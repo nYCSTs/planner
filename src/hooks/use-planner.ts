@@ -68,6 +68,63 @@ export function usePlanner() {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }, []);
 
+  /**
+   * Fork an existing task into a new one: an exact copy (title, description,
+   * color, recurrence, notify/sound) plus all its subtasks — global and the
+   * source day's pontual ones merged into the new task's global subtasks, each
+   * with a fresh id. Subtasks that were done on `fromDay` are carried over as
+   * done on `forDay`. The new task starts as a single-day ("once") task with no
+   * time set, so the caller can open it for the user to pick the new time.
+   * Returns the created task.
+   */
+  const forkTask = useCallback(
+    (sourceId: string, fromDay: Date, forDay: Date): Task | null => {
+      const source = tasks.find((t) => t.id === sourceId);
+      if (!source) return null;
+
+      const fromKey = dateKey(fromDay);
+      const forKey = dateKey(forDay);
+      const sourceOverride = overrides[`${sourceId}:${fromKey}`];
+
+      // Merge global + that day's pontual subtasks, remapping to fresh ids and
+      // remembering which were done so we can mark the copies done.
+      const sourceSubs = [
+        ...(source.subtasks ?? []),
+        ...(sourceOverride?.subtasks ?? []),
+      ];
+      const newSubs = sourceSubs.map((s) => ({
+        sub: { id: uid(), title: s.title },
+        wasDone: Boolean(subtaskDone[`${s.id}:${fromKey}`]),
+      }));
+
+      const newId = uid();
+      const forked: Task = {
+        ...source,
+        id: newId,
+        subtasks: newSubs.map((n) => n.sub),
+        startMinute: null,
+        endMinute: null,
+        recurrence: { kind: "once" },
+        date: forKey,
+        createdAt: new Date().toISOString(),
+      };
+
+      setTasks((prev) => [...prev, forked]);
+
+      const doneToCarry = newSubs.filter((n) => n.wasDone);
+      if (doneToCarry.length > 0) {
+        setSubtaskDone((prev) => {
+          const next = { ...prev };
+          for (const n of doneToCarry) next[`${n.sub.id}:${forKey}`] = true;
+          return next;
+        });
+      }
+
+      return forked;
+    },
+    [tasks, overrides, subtaskDone],
+  );
+
   const deleteTask = useCallback((id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
@@ -285,6 +342,7 @@ export function usePlanner() {
     addTask,
     updateTask,
     deleteTask,
+    forkTask,
     updateSettings,
     toggleDone,
     setDayDescription,
