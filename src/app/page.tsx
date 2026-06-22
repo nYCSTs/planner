@@ -115,6 +115,12 @@ export default function Home() {
 
   const toggleDone = (occ: ResolvedOccurrence) => planner.toggleDone(occ);
 
+  const handleResize = (
+    occ: ResolvedOccurrence,
+    startMinute: number,
+    endMinute: number | null,
+  ) => planner.updateTask(occ.task.id, { startMinute, endMinute });
+
   // The occurrence currently shown in the detail dialog (today/day-scoped).
   const detailOcc = useMemo(
     () => occurrences.find((o) => o.task.id === detailId) ?? null,
@@ -215,6 +221,7 @@ export default function Home() {
               occurrences={scheduledOccurrences}
               onOccurrenceClick={openDetail}
               onToggleDone={toggleDone}
+              onResize={handleResize}
               onSlotClick={openCreate}
             />
           ) : (
