@@ -82,6 +82,7 @@ export function TaskDialog({
   const [kind, setKind] = useState<RecurrenceKind>("once");
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const [everyHour, setEveryHour] = useState(false);
+  const [everyHourInterval, setEveryHourInterval] = useState(1);
   const [hideElapsed, setHideElapsed] = useState(false);
   const [notifyStart, setNotifyStart] = useState<number>(defaultNotifyStart);
   const [notifyEnd, setNotifyEnd] = useState<number>(defaultNotifyEnd);
@@ -99,6 +100,7 @@ export function TaskDialog({
       setKind(editing.recurrence.kind);
       setWeekdays(editing.recurrence.weekdays ?? []);
       setEveryHour(editing.recurrence.everyHour ?? false);
+      setEveryHourInterval(editing.recurrence.everyHourInterval ?? 1);
       setHideElapsed(editing.hideElapsed ?? false);
       setNotifyStart(editing.notifyBeforeStart ?? defaultNotifyStart);
       setNotifyEnd(editing.notifyBeforeEnd ?? defaultNotifyEnd);
@@ -111,6 +113,7 @@ export function TaskDialog({
       setKind("once");
       setWeekdays([]);
       setEveryHour(false);
+      setEveryHourInterval(1);
       setHideElapsed(false);
       setNotifyStart(defaultNotifyStart);
       setNotifyEnd(defaultNotifyEnd);
@@ -164,6 +167,7 @@ export function TaskDialog({
           kind,
           weekdays: kind === "custom" ? weekdays : undefined,
           everyHour: hourly,
+          everyHourInterval: hourly ? Math.max(1, everyHourInterval) : undefined,
         },
         date: kind === "once" ? dateKey(day) : undefined,
         hideElapsed,
@@ -250,20 +254,41 @@ export function TaskDialog({
           )}
 
           {kind !== "once" && (
-            <div className="flex items-center justify-between rounded-md border px-3 py-2">
-              <div>
-                <Label htmlFor="everyHour" className="text-sm font-normal">
-                  Repetir a cada hora
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Repete de hora em hora nos dias selecionados.
-                </p>
+            <div className="space-y-2 rounded-md border px-3 py-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="everyHour" className="text-sm font-normal">
+                    Repetir em intervalos de horas
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Repete a partir do horário de início, nos dias selecionados.
+                  </p>
+                </div>
+                <Switch
+                  id="everyHour"
+                  checked={everyHour}
+                  onCheckedChange={setEveryHour}
+                />
               </div>
-              <Switch
-                id="everyHour"
-                checked={everyHour}
-                onCheckedChange={setEveryHour}
-              />
+              {everyHour && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-sm text-muted-foreground">A cada</span>
+                  <Input
+                    id="everyHourInterval"
+                    type="number"
+                    min={1}
+                    max={23}
+                    value={everyHourInterval}
+                    onChange={(e) =>
+                      setEveryHourInterval(Math.max(1, Number(e.target.value)))
+                    }
+                    className="w-20"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    hora{everyHourInterval === 1 ? "" : "s"}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

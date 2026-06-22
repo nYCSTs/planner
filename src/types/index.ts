@@ -15,11 +15,17 @@ export interface Recurrence {
   /** For "custom": the weekdays the task repeats on. */
   weekdays?: Weekday[];
   /**
-   * When true, the task repeats every hour from its start time on each day the
-   * `kind` is active (e.g. everyHour + everyday = hourly on all days). Not
-   * valid together with `kind: "once"`.
+   * When true, the task repeats on an hourly cadence from its start time on
+   * each day the `kind` is active (e.g. everyHour + everyday = on all days).
+   * Not valid together with `kind: "once"`.
    */
   everyHour?: boolean;
+  /**
+   * Step in hours between repeats when `everyHour` is true (anchored at the
+   * start time). Defaults to 1 when omitted — keeps older tasks (which only had
+   * `everyHour: true`) repeating every hour as before.
+   */
+  everyHourInterval?: number;
 }
 
 export interface Task {

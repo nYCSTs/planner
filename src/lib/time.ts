@@ -30,9 +30,15 @@ export function nowMinutes(date = new Date()): number {
   return date.getHours() * 60 + date.getMinutes();
 }
 
-/** Does this task repeat every hour? */
+/** Does this task repeat on an hourly cadence? */
 export function isHourly(rec: Recurrence): boolean {
   return rec.everyHour === true;
+}
+
+/** Step in hours between hourly repeats (defaults to 1, always >= 1). */
+export function hourlyInterval(rec: Recurrence): number {
+  const n = rec.everyHourInterval ?? 1;
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
 }
 
 /** Whether a recurrence pattern is active on the given weekday. */
@@ -83,17 +89,19 @@ export function resolveOccurrences(
     if (!taskOccursOn(task, day)) continue;
 
     if (isHourly(task.recurrence)) {
-      // The task starts at startMinute and repeats every hour from there until
-      // end of day. Both the hour and minute of startMinute are honored. Each
-      // hour is completed independently, keyed by the occurrence's own key.
+      // The task starts at startMinute and repeats every `interval` hours from
+      // there until end of day, anchored at the start time. Both the hour and
+      // minute of startMinute are honored. Each slot is completed independently,
+      // keyed by the occurrence's own key.
       const offset = task.startMinute % 60;
       const firstHour = Math.floor(task.startMinute / 60);
+      const interval = hourlyInterval(task.recurrence);
       const duration =
         task.endMinute !== null
           ? Math.max(1, task.endMinute - task.startMinute)
           : null;
 
-      for (let hour = firstHour; hour < 24; hour++) {
+      for (let hour = firstHour; hour < 24; hour += interval) {
         const start = hour * 60 + offset;
         if (start >= MINUTES_IN_DAY) break;
         const occKey = `${task.id}:${key}:${hour}`;
@@ -102,7 +110,7 @@ export function resolveOccurrences(
         const baseEnd =
           duration !== null
             ? Math.min(MINUTES_IN_DAY, start + duration)
-            : Math.min(MINUTES_IN_DAY, (hour + 1) * 60 + offset);
+            : Math.min(MINUTES_IN_DAY, (hour + interval) * 60 + offset);
         result.push({
           task,
           key: occKey,
