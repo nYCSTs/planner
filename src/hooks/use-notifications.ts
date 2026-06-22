@@ -60,17 +60,19 @@ export function useNotifications(
       const leadStart = occ.task.notifyBeforeStart ?? settings.notifyBeforeStart;
       const leadEnd = occ.task.notifyBeforeEnd ?? settings.notifyBeforeEnd;
 
-      // About to start.
+      // About to start. With lead 0 this fires exactly at the start minute;
+      // with lead N it fires once within the N-minute window before start.
       const startTrigger = occ.startMinute - leadStart;
       const startKey = `start:${occ.key}`;
       if (
         !fired.has(startKey) &&
         minute >= startTrigger &&
-        minute < occ.startMinute
+        minute <= occ.startMinute
       ) {
         fired.add(startKey);
+        const remaining = occ.startMinute - minute;
         notify(
-          `Começa em ${occ.startMinute - minute} min`,
+          remaining <= 0 ? "Começando agora" : `Começa em ${remaining} min`,
           occ.task.title,
           settings.soundEnabled,
         );
@@ -83,11 +85,12 @@ export function useNotifications(
         if (
           !fired.has(endKey) &&
           minute >= endTrigger &&
-          minute < occ.endMinute
+          minute <= occ.endMinute
         ) {
           fired.add(endKey);
+          const remaining = occ.endMinute - minute;
           notify(
-            `Termina em ${occ.endMinute - minute} min`,
+            remaining <= 0 ? "Terminando agora" : `Termina em ${remaining} min`,
             occ.task.title,
             settings.soundEnabled,
           );
