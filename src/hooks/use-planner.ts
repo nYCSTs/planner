@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Task, Settings, ResolvedOccurrence } from "@/types";
+import { DEFAULT_SETTINGS } from "@/types";
 import { storage } from "@/lib/storage";
 
 function uid(): string {
@@ -76,6 +77,38 @@ export function usePlanner() {
     });
   }, []);
 
+  /** Serialize everything to a JSON backup string. */
+  const exportData = useCallback((): string => {
+    return JSON.stringify(
+      { version: 1, tasks, settings, completions },
+      null,
+      2,
+    );
+  }, [tasks, settings, completions]);
+
+  /**
+   * Replace state from a backup JSON string. Validates the shape loosely and
+   * throws on malformed input so the caller can surface an error. Merges
+   * settings over defaults so missing fields stay valid.
+   */
+  const importData = useCallback((json: string) => {
+    const parsed = JSON.parse(json) as {
+      tasks?: unknown;
+      settings?: unknown;
+      completions?: unknown;
+    };
+    if (!Array.isArray(parsed.tasks)) {
+      throw new Error("Backup inválido: 'tasks' ausente ou malformado.");
+    }
+    setTasks(parsed.tasks as Task[]);
+    if (parsed.settings && typeof parsed.settings === "object") {
+      setSettings({ ...DEFAULT_SETTINGS, ...(parsed.settings as Settings) });
+    }
+    if (parsed.completions && typeof parsed.completions === "object") {
+      setCompletions(parsed.completions as Record<string, number>);
+    }
+  }, []);
+
   return {
     hydrated,
     tasks,
@@ -86,5 +119,7 @@ export function usePlanner() {
     deleteTask,
     updateSettings,
     toggleDone,
+    exportData,
+    importData,
   };
 }

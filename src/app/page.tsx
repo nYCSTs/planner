@@ -189,6 +189,8 @@ export default function Home() {
         onOpenChange={setSettingsOpen}
         settings={planner.settings}
         onChange={planner.updateSettings}
+        onExport={planner.exportData}
+        onImport={planner.importData}
       />
     </div>
   );
