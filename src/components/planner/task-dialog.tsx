@@ -82,6 +82,7 @@ export function TaskDialog({
   const [kind, setKind] = useState<RecurrenceKind>("once");
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const [everyHour, setEveryHour] = useState(false);
+  const [hideElapsed, setHideElapsed] = useState(false);
   const [notifyStart, setNotifyStart] = useState<number>(defaultNotifyStart);
   const [notifyEnd, setNotifyEnd] = useState<number>(defaultNotifyEnd);
 
@@ -98,6 +99,7 @@ export function TaskDialog({
       setKind(editing.recurrence.kind);
       setWeekdays(editing.recurrence.weekdays ?? []);
       setEveryHour(editing.recurrence.everyHour ?? false);
+      setHideElapsed(editing.hideElapsed ?? false);
       setNotifyStart(editing.notifyBeforeStart ?? defaultNotifyStart);
       setNotifyEnd(editing.notifyBeforeEnd ?? defaultNotifyEnd);
     } else {
@@ -109,6 +111,7 @@ export function TaskDialog({
       setKind("once");
       setWeekdays([]);
       setEveryHour(false);
+      setHideElapsed(false);
       setNotifyStart(defaultNotifyStart);
       setNotifyEnd(defaultNotifyEnd);
     }
@@ -163,6 +166,7 @@ export function TaskDialog({
           everyHour: hourly,
         },
         date: kind === "once" ? dateKey(day) : undefined,
+        hideElapsed,
         notifyBeforeStart: notifyStart,
         notifyBeforeEnd: notifyEnd,
       },
@@ -262,6 +266,22 @@ export function TaskDialog({
               />
             </div>
           )}
+
+          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+            <div>
+              <Label htmlFor="hideElapsed" className="text-sm font-normal">
+                Não considerar passado
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Esconde ocorrências já encerradas no dia de hoje.
+              </p>
+            </div>
+            <Switch
+              id="hideElapsed"
+              checked={hideElapsed}
+              onCheckedChange={setHideElapsed}
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

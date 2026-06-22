@@ -50,6 +50,12 @@ export interface Task {
   notifyBeforeStart?: number;
   notifyBeforeEnd?: number;
 
+  /**
+   * When true, occurrences whose end time has already elapsed are hidden — but
+   * only on the current day. Past days still show every occurrence (history).
+   */
+  hideElapsed?: boolean;
+
   createdAt: string;
 }
 

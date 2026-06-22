@@ -41,12 +41,12 @@ export default function Home() {
   }, [planner.hydrated, planner.settings.theme, setTheme]);
 
   const occurrences = useMemo(
-    () => resolveOccurrences(planner.tasks, day, planner.completions),
-    [planner.tasks, day, planner.completions],
+    () => resolveOccurrences(planner.tasks, day, planner.completions, now),
+    [planner.tasks, day, planner.completions, now],
   );
 
   const todayOccurrences = useMemo(
-    () => resolveOccurrences(planner.tasks, now, planner.completions),
+    () => resolveOccurrences(planner.tasks, now, planner.completions, now),
     [planner.tasks, now, planner.completions],
   );
 

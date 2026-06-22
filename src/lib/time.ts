@@ -64,13 +64,19 @@ function taskOccursOn(task: Task, day: Date): boolean {
  * Resolve every task into the concrete occurrences that fall on `day`.
  * Hourly tasks expand into one occurrence per hour. Open-ended tasks get an
  * effective end (manual completion minute, or end-of-day for layout).
+ *
+ * When `now` is passed and falls on `day`, tasks flagged `hideElapsed` drop
+ * occurrences whose end has already passed (only applies to the current day).
  */
 export function resolveOccurrences(
   tasks: Task[],
   day: Date,
   completions: Record<string, number>, // key `${taskId}:${dateKey}` -> completedAtMinute
+  now?: Date,
 ): ResolvedOccurrence[] {
   const key = dateKey(day);
+  const isCurrentDay = now !== undefined && dateKey(now) === key;
+  const currentMinute = isCurrentDay ? nowMinutes(now) : 0;
   const result: ResolvedOccurrence[] = [];
 
   for (const task of tasks) {
@@ -133,7 +139,16 @@ export function resolveOccurrences(
     });
   }
 
-  return result.sort((a, b) => a.startMinute - b.startMinute);
+  // Hide occurrences whose end has already passed today (per-task opt-in).
+  // Genuinely open-ended non-hourly tasks have endMinute = MINUTES_IN_DAY, so
+  // they survive until day's end; hourly slots have a concrete per-hour end.
+  const visible = isCurrentDay
+    ? result.filter(
+        (o) => !(o.task.hideElapsed && o.endMinute <= currentMinute),
+      )
+    : result;
+
+  return visible.sort((a, b) => a.startMinute - b.startMinute);
 }
 
 /** Do two [start, end) intervals overlap? */
