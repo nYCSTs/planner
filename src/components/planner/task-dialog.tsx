@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { TASK_COLORS, randomColor } from "@/lib/colors";
-import { dateKey, minutesToTime, timeToMinutes } from "@/lib/time";
+import { dateKey, minutesToTime, nowMinutes, timeToMinutes } from "@/lib/time";
 import { findConflicts } from "@/lib/conflicts";
 import type { RecurrenceKind, Task, Weekday } from "@/types";
 
@@ -237,9 +237,18 @@ export function TaskDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="start">
-                {kind === "hourly" ? "Minuto inicial" : "Início"}
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="start">
+                  {kind === "hourly" ? "Minuto inicial" : "Início"}
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setStart(minutesToTime(nowMinutes()))}
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  agora
+                </button>
+              </div>
               <Input
                 id="start"
                 type="time"
