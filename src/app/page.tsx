@@ -7,9 +7,11 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Timeline } from "@/components/planner/timeline";
 import { TaskDialog, type TaskDraft } from "@/components/planner/task-dialog";
+import { NowPanel } from "@/components/planner/now-panel";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
-import { resolveOccurrences } from "@/lib/time";
+import { resolveOccurrences, nowMinutes } from "@/lib/time";
+import { activeAt } from "@/lib/active";
 import type { ResolvedOccurrence } from "@/types";
 
 export default function Home() {
@@ -21,6 +23,16 @@ export default function Home() {
   const occurrences = useMemo(
     () => resolveOccurrences(planner.tasks, day, planner.completions),
     [planner.tasks, day, planner.completions],
+  );
+
+  const todayOccurrences = useMemo(
+    () => resolveOccurrences(planner.tasks, now, planner.completions),
+    [planner.tasks, now, planner.completions],
+  );
+
+  const activeState = useMemo(
+    () => activeAt(todayOccurrences, nowMinutes(now)),
+    [todayOccurrences, now],
   );
 
   const openCreate = (startMinute: number) => setDraft({ startMinute });
@@ -74,6 +86,16 @@ export default function Home() {
             </div>
           )}
         </section>
+
+        <aside className="hidden w-80 shrink-0 space-y-4 overflow-y-auto border-l p-4 lg:block">
+          {planner.hydrated && (
+            <NowPanel
+              state={activeState}
+              isToday={isToday(day)}
+              onFinish={(taskId) => planner.completeTask(taskId, now)}
+            />
+          )}
+        </aside>
       </main>
 
       <TaskDialog
