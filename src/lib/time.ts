@@ -187,19 +187,23 @@ export function resolveOccurrences(
     });
   }
 
-  // Hide occurrences whose end has already passed today (per-task opt-in).
-  // Hourly tasks are never hidden this way — each slot is an independent
-  // occurrence and elapsed slots should remain visible (pending or late).
+  // Hide occurrences that ended before the relevant cutoff minute (opt-in).
+  // Hourly tasks are exempt — each slot is independent and should stay visible.
+  // Cutoff logic:
+  //   - On the task's creation day: use the task's creation minute, so slots
+  //     that had already ended when the task was created don't appear.
+  //   - On any other current day: use the current minute (hide elapsed slots).
   const visible = isCurrentDay
-    ? result.filter(
-        (o) =>
-          !(
-            o.scheduled &&
-            o.task.hideElapsed &&
-            !isHourly(o.task.recurrence) &&
-            o.endMinute <= currentMinute
-          ),
-      )
+    ? result.filter((o) => {
+        if (!o.scheduled || !o.task.hideElapsed || isHourly(o.task.recurrence))
+          return true;
+        const createdDate = new Date(o.task.createdAt);
+        const isCreationDay = dateKey(createdDate) === key;
+        const cutoff = isCreationDay
+          ? createdDate.getHours() * 60 + createdDate.getMinutes()
+          : currentMinute;
+        return o.endMinute > cutoff;
+      })
     : result;
 
   return visible.sort((a, b) => a.startMinute - b.startMinute);
