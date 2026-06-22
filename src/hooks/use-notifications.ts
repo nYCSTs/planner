@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ResolvedOccurrence, Settings } from "@/types";
 import { nowMinutes } from "@/lib/time";
-import { beep } from "@/lib/sound";
+import { startAlarm, stopAlarm, isAlarmActive } from "@/lib/sound";
 
 type Permission = "default" | "granted" | "denied" | "unsupported";
 
@@ -13,12 +13,15 @@ function getPermission(): Permission {
   return Notification.permission as Permission;
 }
 
+/** Fire browser notification (persistent until dismissed) and optionally start
+ *  the repeating alarm sound. */
 function notify(title: string, body: string, sound: boolean) {
-  if (sound) beep(1);
+  if (sound) startAlarm();
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   try {
-    new Notification(title, { body, tag: title + body });
+    // requireInteraction keeps the notification visible until the user acts.
+    new Notification(title, { body, tag: title + body, requireInteraction: true });
   } catch {
     // ignore
   }
@@ -28,6 +31,9 @@ function notify(title: string, body: string, sound: boolean) {
  * Watches today's occurrences and fires a notification when a task is about to
  * start or about to end, using per-task lead times (falling back to settings).
  * Each event fires at most once per day via an in-memory dedup set.
+ *
+ * Returns `alarmActive` (true while the repeating alarm sound is running) and
+ * `dismissAlarm()` so the UI can render a "Parar alarme" button.
  */
 export function useNotifications(
   occurrences: ResolvedOccurrence[],
@@ -35,6 +41,7 @@ export function useNotifications(
   settings: Settings,
 ) {
   const [permission, setPermission] = useState<Permission>("default");
+  const [alarmActive, setAlarmActive] = useState(false);
   const firedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -43,10 +50,24 @@ export function useNotifications(
     setPermission(getPermission());
   }, []);
 
+  // Poll alarm state so the banner updates when the alarm auto-starts.
+  useEffect(() => {
+    const id = setInterval(() => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAlarmActive(isAlarmActive());
+    }, 500);
+    return () => clearInterval(id);
+  }, []);
+
   const requestPermission = useCallback(async () => {
     if (!("Notification" in window)) return;
     const result = await Notification.requestPermission();
     setPermission(result as Permission);
+  }, []);
+
+  const dismissAlarm = useCallback(() => {
+    stopAlarm();
+    setAlarmActive(false);
   }, []);
 
   useEffect(() => {
@@ -100,5 +121,5 @@ export function useNotifications(
     }
   }, [occurrences, now, settings]);
 
-  return { permission, requestPermission };
+  return { permission, requestPermission, alarmActive, dismissAlarm };
 }

@@ -84,11 +84,8 @@ export default function Home() {
     [planner.tasks, now, planner.completions],
   );
 
-  const { permission, requestPermission } = useNotifications(
-    todayOccurrences,
-    now,
-    planner.settings,
-  );
+  const { permission, requestPermission, alarmActive, dismissAlarm } =
+    useNotifications(todayOccurrences, now, planner.settings);
 
   const openCreate = (startMinute: number) => setDraft({ startMinute });
 
@@ -214,6 +211,20 @@ export default function Home() {
             Ative as notificações do navegador para receber avisos das tarefas →
           </button>
         )}
+
+      {alarmActive && (
+        <div className="flex items-center justify-between border-b bg-red-500/10 px-4 py-2">
+          <span className="text-xs font-medium text-red-700 dark:text-red-400">
+            🔔 Alarme tocando…
+          </span>
+          <button
+            onClick={dismissAlarm}
+            className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 active:bg-red-800"
+          >
+            Parar alarme
+          </button>
+        </div>
+      )}
 
       <main className="flex min-h-0 flex-1">
         <aside
