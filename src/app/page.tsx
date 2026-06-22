@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   GitFork,
@@ -48,6 +49,8 @@ export default function Home() {
   const [listOpen, setListOpen] = useState(false);
   const [pomodoroOpen, setPomodoroOpen] = useState(false);
   const [forkOpen, setForkOpen] = useState(false);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
 
   // Keep the live theme in sync with persisted settings after hydration.
   useEffect(() => {
@@ -121,10 +124,10 @@ export default function Home() {
     endMinute: number | null,
   ) => planner.updateTask(occ.task.id, { startMinute, endMinute });
 
-  // Fork a chosen task into a new copy for the current day, then open it in the
+  // Fork a chosen task into a new copy for targetDay, then open it in the
   // edit form so the user sets the new time.
-  const handleFork = (sourceId: string) => {
-    const forked = planner.forkTask(sourceId, day, day);
+  const handleFork = (sourceId: string, targetDay: Date) => {
+    const forked = planner.forkTask(sourceId, day, targetDay);
     setForkOpen(false);
     if (forked) setDraft({ startMinute: null, task: forked });
   };
@@ -175,18 +178,43 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-1">
-          <Button size="sm" onClick={() => openCreate(nowMinutes(now))}>
-            <Plus className="mr-1 h-4 w-4" /> Nova tarefa
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setForkOpen(true)}
-            aria-label="Duplicar de outra tarefa"
-            title="Duplicar de outra tarefa"
-          >
-            <GitFork className="h-4 w-4" />
-          </Button>
+          {/* Split button: main action = new blank task; arrow = dropdown with fork option */}
+          <div ref={newMenuRef} className="relative flex">
+            <Button
+              size="sm"
+              className="rounded-r-none pr-2"
+              onClick={() => { openCreate(nowMinutes(now)); setNewMenuOpen(false); }}
+            >
+              <Plus className="mr-1 h-4 w-4" /> Nova tarefa
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-l-none border-l border-l-white/20 px-1.5"
+              onClick={() => setNewMenuOpen((o) => !o)}
+              aria-label="Mais opções"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+            {newMenuOpen && (
+              <>
+                {/* Click-away backdrop */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setNewMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-max rounded-md border bg-popover py-1 shadow-md">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                    onClick={() => { setNewMenuOpen(false); setForkOpen(true); }}
+                  >
+                    <GitFork className="h-4 w-4 text-muted-foreground" />
+                    Copiar de tarefa existente…
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <Button
             variant={pomodoroOpen ? "secondary" : "ghost"}
             size="icon"
@@ -314,9 +342,8 @@ export default function Home() {
                 openEditTask(task, true);
               }}
               onFork={() => {
-                const sourceId = detailOcc.task.id;
                 setDetailId(null);
-                handleFork(sourceId);
+                setForkOpen(true);
               }}
               onSetDayDescription={(description) =>
                 planner.setDayDescription(detailOcc.task.id, day, description)
@@ -341,6 +368,7 @@ export default function Home() {
       <ForkDialog
         open={forkOpen}
         tasks={planner.tasks}
+        defaultDay={day}
         onClose={() => setForkOpen(false)}
         onPick={handleFork}
       />

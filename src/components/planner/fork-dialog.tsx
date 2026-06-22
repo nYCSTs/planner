@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { GitFork, Search } from "lucide-react";
 import {
   Dialog,
@@ -9,35 +11,81 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { minutesToTime } from "@/lib/time";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { minutesToTime, dateKey } from "@/lib/time";
 import type { Task } from "@/types";
 
 interface ForkDialogProps {
   open: boolean;
   tasks: Task[];
+  defaultDay: Date;
   onClose: () => void;
-  onPick: (taskId: string) => void;
+  /** Called with the chosen source task id and the target day. */
+  onPick: (taskId: string, targetDay: Date) => void;
 }
 
-export function ForkDialog({ open, tasks, onClose, onPick }: ForkDialogProps) {
+export function ForkDialog({
+  open,
+  tasks,
+  defaultDay,
+  onClose,
+  onPick,
+}: ForkDialogProps) {
   const [query, setQuery] = useState("");
+  const [targetDateStr, setTargetDateStr] = useState<string>(
+    () => dateKey(defaultDay),
+  );
+
+  // Reset target day whenever the dialog opens with a new defaultDay.
+  const handleOpenChange = (o: boolean) => {
+    if (!o) { onClose(); return; }
+    setTargetDateStr(dateKey(defaultDay));
+  };
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tasks
       .filter((t) => (q ? t.title.toLowerCase().includes(q) : true))
-      .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)); // most recent first
+      .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
   }, [tasks, query]);
 
+  const targetDay = useMemo(() => {
+    try { return parseISO(targetDateStr); } catch { return defaultDay; }
+  }, [targetDateStr, defaultDay]);
+
+  const targetLabel = useMemo(() => {
+    try {
+      return format(targetDay, "EEEE, d 'de' MMMM", { locale: ptBR });
+    } catch { return targetDateStr; }
+  }, [targetDay, targetDateStr]);
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[80vh] overflow-hidden sm:max-w-lg">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <GitFork className="h-4 w-4" /> Duplicar de outra tarefa
+            <GitFork className="h-4 w-4" /> Copiar de tarefa existente
           </DialogTitle>
         </DialogHeader>
 
+        {/* Target day picker */}
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Para o dia</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={targetDateStr}
+              onChange={(e) => setTargetDateStr(e.target.value)}
+              className="w-44 text-sm"
+            />
+            <span className="truncate text-sm capitalize text-muted-foreground">
+              {targetLabel}
+            </span>
+          </div>
+        </div>
+
+        {/* Task search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -49,7 +97,7 @@ export function ForkDialog({ open, tasks, onClose, onPick }: ForkDialogProps) {
           />
         </div>
 
-        <div className="-mx-1 max-h-[50vh] overflow-y-auto px-1">
+        <div className="-mx-1 max-h-[45vh] overflow-y-auto px-1">
           {results.length === 0 ? (
             <p className="p-4 text-center text-sm text-muted-foreground">
               Nenhuma tarefa encontrada.
@@ -60,7 +108,7 @@ export function ForkDialog({ open, tasks, onClose, onPick }: ForkDialogProps) {
                 <li key={t.id}>
                   <button
                     type="button"
-                    onClick={() => onPick(t.id)}
+                    onClick={() => onPick(t.id, targetDay)}
                     className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left hover:bg-accent/50"
                   >
                     <span
@@ -79,6 +127,14 @@ export function ForkDialog({ open, tasks, onClose, onPick }: ForkDialogProps) {
                           }`}
                       </span>
                     </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 shrink-0 text-xs"
+                      tabIndex={-1}
+                    >
+                      Copiar
+                    </Button>
                   </button>
                 </li>
               ))}
