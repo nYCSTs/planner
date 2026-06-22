@@ -239,7 +239,7 @@ export function TaskDialog({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="start">
-                  {kind === "hourly" ? "Minuto inicial" : "Início"}
+                  {kind === "hourly" ? "Primeiro horário" : "Início"}
                 </Label>
                 <button
                   type="button"
@@ -276,8 +276,8 @@ export function TaskDialog({
 
           {kind === "hourly" && (
             <p className="text-xs text-muted-foreground">
-              Repete toda hora. Só o minuto do horário de início é usado (ex:
-              09:15 → :15 de cada hora).
+              Começa no primeiro horário e repete a cada hora até o fim do dia
+              (ex: 23:00 → só às 23:00; 09:15 → 09:15, 10:15, 11:15…).
             </p>
           )}
           {!hasEnd && (

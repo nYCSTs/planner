@@ -78,14 +78,16 @@ export function resolveOccurrences(
     const isCompleted = completedAt !== undefined;
 
     if (task.recurrence.kind === "hourly") {
-      // Anchor minute within the hour comes from startMinute.
+      // The task starts at startMinute and repeats every hour from there until
+      // end of day. Both the hour and minute of startMinute are honored.
       const offset = task.startMinute % 60;
+      const firstHour = Math.floor(task.startMinute / 60);
       const duration =
         task.endMinute !== null
           ? Math.max(1, task.endMinute - task.startMinute)
           : null;
 
-      for (let hour = 0; hour < 24; hour++) {
+      for (let hour = firstHour; hour < 24; hour++) {
         const start = hour * 60 + offset;
         if (start >= MINUTES_IN_DAY) break;
         const end =
