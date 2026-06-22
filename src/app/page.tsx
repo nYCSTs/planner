@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Timeline } from "@/components/planner/timeline";
+import { TaskDialog, type TaskDraft } from "@/components/planner/task-dialog";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
 import { resolveOccurrences } from "@/lib/time";
@@ -15,18 +16,17 @@ export default function Home() {
   const planner = usePlanner();
   const now = useNow();
   const [day, setDay] = useState<Date>(() => new Date());
-  const [draftStart, setDraftStart] = useState<number | null>(null);
-  const [editing, setEditing] = useState<ResolvedOccurrence | null>(null);
+  const [draft, setDraft] = useState<TaskDraft | null>(null);
 
   const occurrences = useMemo(
     () => resolveOccurrences(planner.tasks, day, planner.completions),
     [planner.tasks, day, planner.completions],
   );
 
-  const openCreate = (startMinute: number) => {
-    setEditing(null);
-    setDraftStart(startMinute);
-  };
+  const openCreate = (startMinute: number) => setDraft({ startMinute });
+
+  const openEdit = (occ: ResolvedOccurrence) =>
+    setDraft({ startMinute: occ.startMinute, task: occ.task });
 
   return (
     <div className="flex h-screen flex-col">
@@ -65,7 +65,7 @@ export default function Home() {
               day={day}
               now={now}
               occurrences={occurrences}
-              onOccurrenceClick={setEditing}
+              onOccurrenceClick={openEdit}
               onSlotClick={openCreate}
             />
           ) : (
@@ -76,10 +76,20 @@ export default function Home() {
         </section>
       </main>
 
-      {/* draftStart / editing wired to the task dialog in the next step */}
-      {(draftStart !== null || editing) && (
-        <div className="hidden" data-placeholder />
-      )}
+      <TaskDialog
+        open={draft !== null}
+        draft={draft}
+        day={day}
+        existingTasks={planner.tasks}
+        defaultNotifyStart={planner.settings.notifyBeforeStart}
+        defaultNotifyEnd={planner.settings.notifyBeforeEnd}
+        onClose={() => setDraft(null)}
+        onSave={(task, id) => {
+          if (id) planner.updateTask(id, task);
+          else planner.addTask(task);
+        }}
+        onDelete={planner.deleteTask}
+      />
     </div>
   );
 }
