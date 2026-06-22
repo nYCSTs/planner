@@ -1,4 +1,5 @@
 import type { ResolvedOccurrence } from "@/types";
+import { isHourly } from "./time";
 
 export interface PlacedOccurrence {
   occurrence: ResolvedOccurrence;
@@ -18,8 +19,8 @@ export interface PlacedOccurrence {
 export function placeOccurrences(
   occurrences: ResolvedOccurrence[],
 ): PlacedOccurrence[] {
-  const overlay = occurrences.filter((o) => o.task.recurrence.kind === "hourly");
-  const regular = occurrences.filter((o) => o.task.recurrence.kind !== "hourly");
+  const overlay = occurrences.filter((o) => isHourly(o.task.recurrence));
+  const regular = occurrences.filter((o) => !isHourly(o.task.recurrence));
 
   const placed: PlacedOccurrence[] = [];
 

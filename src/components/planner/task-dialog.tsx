@@ -38,7 +38,6 @@ const WEEKDAY_LABELS: { value: Weekday; label: string }[] = [
 
 const RECURRENCE_OPTIONS: { value: RecurrenceKind; label: string }[] = [
   { value: "once", label: "Pontual (um dia)" },
-  { value: "hourly", label: "A cada hora" },
   { value: "weekdays", label: "Dias úteis" },
   { value: "weekends", label: "Fim de semana" },
   { value: "everyday", label: "Todos os dias" },
@@ -82,6 +81,7 @@ export function TaskDialog({
   const [end, setEnd] = useState("10:00");
   const [kind, setKind] = useState<RecurrenceKind>("once");
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
+  const [everyHour, setEveryHour] = useState(false);
   const [notifyStart, setNotifyStart] = useState<number>(defaultNotifyStart);
   const [notifyEnd, setNotifyEnd] = useState<number>(defaultNotifyEnd);
 
@@ -97,6 +97,7 @@ export function TaskDialog({
       setEnd(minutesToTime(editing.endMinute ?? editing.startMinute + 60));
       setKind(editing.recurrence.kind);
       setWeekdays(editing.recurrence.weekdays ?? []);
+      setEveryHour(editing.recurrence.everyHour ?? false);
       setNotifyStart(editing.notifyBeforeStart ?? defaultNotifyStart);
       setNotifyEnd(editing.notifyBeforeEnd ?? defaultNotifyEnd);
     } else {
@@ -107,6 +108,7 @@ export function TaskDialog({
       setEnd(minutesToTime(draft.startMinute + 60));
       setKind("once");
       setWeekdays([]);
+      setEveryHour(false);
       setNotifyStart(defaultNotifyStart);
       setNotifyEnd(defaultNotifyEnd);
     }
@@ -116,14 +118,21 @@ export function TaskDialog({
   const startMinute = timeToMinutes(start);
   const endMinute = hasEnd ? timeToMinutes(end) : null;
 
+  // "Every hour" only makes sense on recurring patterns, not single-day tasks.
+  const hourly = everyHour && kind !== "once";
+
   const candidate = useMemo(
     () => ({
       startMinute,
       endMinute,
-      recurrence: { kind, weekdays: kind === "custom" ? weekdays : undefined },
+      recurrence: {
+        kind,
+        weekdays: kind === "custom" ? weekdays : undefined,
+        everyHour: hourly,
+      },
       date: kind === "once" ? dateKey(day) : undefined,
     }),
-    [startMinute, endMinute, kind, weekdays, day],
+    [startMinute, endMinute, kind, weekdays, hourly, day],
   );
 
   const conflicts = useMemo(
@@ -151,6 +160,7 @@ export function TaskDialog({
         recurrence: {
           kind,
           weekdays: kind === "custom" ? weekdays : undefined,
+          everyHour: hourly,
         },
         date: kind === "once" ? dateKey(day) : undefined,
         notifyBeforeStart: notifyStart,
@@ -235,11 +245,29 @@ export function TaskDialog({
             </div>
           )}
 
+          {kind !== "once" && (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <Label htmlFor="everyHour" className="text-sm font-normal">
+                  Repetir a cada hora
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Repete de hora em hora nos dias selecionados.
+                </p>
+              </div>
+              <Switch
+                id="everyHour"
+                checked={everyHour}
+                onCheckedChange={setEveryHour}
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="start">
-                  {kind === "hourly" ? "Primeiro horário" : "Início"}
+                  {hourly ? "Primeiro horário" : "Início"}
                 </Label>
                 <button
                   type="button"
@@ -274,7 +302,7 @@ export function TaskDialog({
             </div>
           </div>
 
-          {kind === "hourly" && (
+          {hourly && (
             <p className="text-xs text-muted-foreground">
               Começa no primeiro horário e repete a cada hora até o fim do dia
               (ex: 23:00 → só às 23:00; 09:15 → 09:15, 10:15, 11:15…).

@@ -1,5 +1,5 @@
 import type { Task } from "@/types";
-import { intervalsOverlap, recurrenceWeekdays } from "./time";
+import { intervalsOverlap, isHourly, recurrenceWeekdays } from "./time";
 
 /**
  * Two tasks can share at least one active day if their recurrence patterns
@@ -37,8 +37,8 @@ export function findConflicts(
 ): Task[] {
   return existing.filter((task) => {
     if (task.id === ignoreId) return false;
-    if (task.recurrence.kind === "hourly") return false;
-    if (candidate.recurrence.kind === "hourly") return false;
+    if (isHourly(task.recurrence)) return false;
+    if (isHourly(candidate.recurrence)) return false;
     if (!sharesActiveDay(task, candidate as Task)) return false;
     return intervalsOverlap(
       candidate.startMinute,

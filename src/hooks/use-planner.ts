@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Task, Settings } from "@/types";
+import type { Task, Settings, ResolvedOccurrence } from "@/types";
 import { storage } from "@/lib/storage";
-import { dateKey, nowMinutes } from "@/lib/time";
 
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -59,55 +58,23 @@ export function usePlanner() {
     setSettings((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  /** Mark an open-ended task finished now (or at a given minute) on a day. */
-  const completeTask = useCallback(
-    (taskId: string, day: Date, atMinute?: number) => {
-      const key = `${taskId}:${dateKey(day)}`;
-      setCompletions((prev) => ({
-        ...prev,
-        [key]: atMinute ?? nowMinutes(),
-      }));
-    },
-    [],
-  );
-
-  const uncompleteTask = useCallback((taskId: string, day: Date) => {
-    const key = `${taskId}:${dateKey(day)}`;
+  /**
+   * Toggle an occurrence's "done" state with the right granularity:
+   * - hourly tasks → just that one hour on that day (keyed by occurrence key).
+   * - once / daily-recurring tasks → that day (per-day completion).
+   * Completion is always per-day (or per-hour) — never archives the whole task,
+   * so finishing one occurrence never removes the others.
+   */
+  const toggleDone = useCallback((occ: ResolvedOccurrence) => {
+    const makeDone = !occ.completed;
+    const key = occ.key; // `${taskId}:${date}` or `${taskId}:${date}:${hour}`
     setCompletions((prev) => {
+      if (makeDone) return { ...prev, [key]: occ.startMinute };
       const next = { ...prev };
       delete next[key];
       return next;
     });
   }, []);
-
-  /**
-   * Toggle a task's "done" state with the right semantics:
-   * - once tasks → per-day completion (done just for that day).
-   * - recurring tasks → archived (done "for good", stops recurring).
-   * `done` forces a direction; omit to flip the current state.
-   */
-  const toggleDone = useCallback(
-    (task: Task, day: Date, currentlyDone: boolean) => {
-      const recurring = task.recurrence.kind !== "once";
-      const makeDone = !currentlyDone;
-
-      if (recurring) {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === task.id ? { ...t, archived: makeDone } : t)),
-        );
-        return;
-      }
-
-      const key = `${task.id}:${dateKey(day)}`;
-      setCompletions((prev) => {
-        if (makeDone) return { ...prev, [key]: nowMinutes() };
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    },
-    [],
-  );
 
   return {
     hydrated,
@@ -118,8 +85,6 @@ export function usePlanner() {
     updateTask,
     deleteTask,
     updateSettings,
-    completeTask,
-    uncompleteTask,
     toggleDone,
   };
 }

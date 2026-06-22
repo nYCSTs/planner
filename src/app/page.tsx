@@ -61,8 +61,7 @@ export default function Home() {
   const openEdit = (occ: ResolvedOccurrence) =>
     setDraft({ startMinute: occ.startMinute, task: occ.task });
 
-  const toggleDone = (occ: ResolvedOccurrence) =>
-    planner.toggleDone(occ.task, day, occ.completed);
+  const toggleDone = (occ: ResolvedOccurrence) => planner.toggleDone(occ);
 
   return (
     <div className="flex h-screen flex-col">

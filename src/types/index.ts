@@ -5,7 +5,6 @@ export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export type RecurrenceKind =
   | "once" // a single dated occurrence
-  | "hourly" // repeats every hour on the chosen days
   | "weekdays" // Mon–Fri
   | "weekends" // Sat–Sun
   | "everyday" // all 7 days
@@ -15,6 +14,12 @@ export interface Recurrence {
   kind: RecurrenceKind;
   /** For "custom": the weekdays the task repeats on. */
   weekdays?: Weekday[];
+  /**
+   * When true, the task repeats every hour from its start time on each day the
+   * `kind` is active (e.g. everyHour + everyday = hourly on all days). Not
+   * valid together with `kind: "once"`.
+   */
+  everyHour?: boolean;
 }
 
 export interface Task {
@@ -44,12 +49,6 @@ export interface Task {
   /** Lead time overrides (minutes). Falls back to global settings when undefined. */
   notifyBeforeStart?: number;
   notifyBeforeEnd?: number;
-
-  /**
-   * Marks a recurring task as done "for good": it stops producing occurrences
-   * from now on. Once tasks use per-day completions instead (see Completion).
-   */
-  archived?: boolean;
 
   createdAt: string;
 }

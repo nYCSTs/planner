@@ -30,11 +30,15 @@ export function nowMinutes(date = new Date()): number {
   return date.getHours() * 60 + date.getMinutes();
 }
 
+/** Does this task repeat every hour? */
+export function isHourly(rec: Recurrence): boolean {
+  return rec.everyHour === true;
+}
+
 /** Whether a recurrence pattern is active on the given weekday. */
 function recurrenceMatchesWeekday(rec: Recurrence, weekday: Weekday): boolean {
   switch (rec.kind) {
     case "everyday":
-    case "hourly":
       return true;
     case "weekdays":
       return weekday >= 1 && weekday <= 5;
@@ -70,16 +74,12 @@ export function resolveOccurrences(
   const result: ResolvedOccurrence[] = [];
 
   for (const task of tasks) {
-    if (task.archived) continue;
     if (!taskOccursOn(task, day)) continue;
 
-    const completionKey = `${task.id}:${key}`;
-    const completedAt = completions[completionKey];
-    const isCompleted = completedAt !== undefined;
-
-    if (task.recurrence.kind === "hourly") {
+    if (isHourly(task.recurrence)) {
       // The task starts at startMinute and repeats every hour from there until
-      // end of day. Both the hour and minute of startMinute are honored.
+      // end of day. Both the hour and minute of startMinute are honored. Each
+      // hour is completed independently, keyed by the occurrence's own key.
       const offset = task.startMinute % 60;
       const firstHour = Math.floor(task.startMinute / 60);
       const duration =
@@ -90,22 +90,29 @@ export function resolveOccurrences(
       for (let hour = firstHour; hour < 24; hour++) {
         const start = hour * 60 + offset;
         if (start >= MINUTES_IN_DAY) break;
-        const end =
+        const occKey = `${task.id}:${key}:${hour}`;
+        const doneAt = completions[occKey];
+        const done = doneAt !== undefined;
+        const baseEnd =
           duration !== null
             ? Math.min(MINUTES_IN_DAY, start + duration)
             : Math.min(MINUTES_IN_DAY, (hour + 1) * 60 + offset);
         result.push({
           task,
-          key: `${task.id}:${key}:${hour}`,
+          key: occKey,
           date: key,
           startMinute: start,
-          endMinute: end,
+          endMinute: duration === null && done ? doneAt : baseEnd,
           openEnded: duration === null,
-          completed: false,
+          completed: done,
         });
       }
       continue;
     }
+
+    const completionKey = `${task.id}:${key}`;
+    const completedAt = completions[completionKey];
+    const isCompleted = completedAt !== undefined;
 
     const openEnded = task.endMinute === null;
     let endMinute: number;
@@ -143,7 +150,6 @@ export function intervalsOverlap(
 
 const RECURRENCE_DAYS: Record<string, Weekday[]> = {
   everyday: [0, 1, 2, 3, 4, 5, 6],
-  hourly: [0, 1, 2, 3, 4, 5, 6],
   weekdays: [1, 2, 3, 4, 5],
   weekends: [0, 6],
 };
