@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Timeline } from "@/components/planner/timeline";
 import { TaskDialog, type TaskDraft } from "@/components/planner/task-dialog";
 import { NowPanel } from "@/components/planner/now-panel";
+import { Pomodoro } from "@/components/planner/pomodoro";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
 import { resolveOccurrences, nowMinutes } from "@/lib/time";
@@ -93,6 +94,13 @@ export default function Home() {
               state={activeState}
               isToday={isToday(day)}
               onFinish={(taskId) => planner.completeTask(taskId, now)}
+            />
+          )}
+          {planner.hydrated && (
+            <Pomodoro
+              workMinutes={planner.settings.pomodoroWork}
+              breakMinutes={planner.settings.pomodoroBreak}
+              soundEnabled={planner.settings.soundEnabled}
             />
           )}
         </aside>
