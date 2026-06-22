@@ -3,19 +3,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDays, format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, Settings as SettingsIcon } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ListTodo,
+  Plus,
+  Settings as SettingsIcon,
+  Timer,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { SettingsSheet } from "@/components/planner/settings-sheet";
 import { useTheme } from "@/components/theme-provider";
 import { Timeline } from "@/components/planner/timeline";
 import { TaskDialog, type TaskDraft } from "@/components/planner/task-dialog";
-import { NowPanel } from "@/components/planner/now-panel";
+import { TaskList } from "@/components/planner/task-list";
 import { Pomodoro } from "@/components/planner/pomodoro";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
 import { useNotifications } from "@/hooks/use-notifications";
 import { resolveOccurrences, nowMinutes } from "@/lib/time";
-import { activeAt } from "@/lib/active";
 import type { ResolvedOccurrence } from "@/types";
 
 export default function Home() {
@@ -25,6 +32,8 @@ export default function Home() {
   const [day, setDay] = useState<Date>(() => new Date());
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [pomodoroOpen, setPomodoroOpen] = useState(false);
 
   // Keep the live theme in sync with persisted settings after hydration.
   useEffect(() => {
@@ -41,11 +50,6 @@ export default function Home() {
     [planner.tasks, now, planner.completions],
   );
 
-  const activeState = useMemo(
-    () => activeAt(todayOccurrences, nowMinutes(now)),
-    [todayOccurrences, now],
-  );
-
   const { permission, requestPermission } = useNotifications(
     todayOccurrences,
     now,
@@ -57,11 +61,22 @@ export default function Home() {
   const openEdit = (occ: ResolvedOccurrence) =>
     setDraft({ startMinute: occ.startMinute, task: occ.task });
 
+  const toggleDone = (occ: ResolvedOccurrence) =>
+    planner.toggleDone(occ.task, day, occ.completed);
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between gap-4 border-b px-4 py-3">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold tracking-tight">Planner</h1>
+        <div className="flex items-center gap-1">
+          <Button
+            variant={listOpen ? "secondary" : "ghost"}
+            size="icon"
+            onClick={() => setListOpen((o) => !o)}
+            aria-label="Tarefas do dia"
+          >
+            <ListTodo className="h-4 w-4" />
+          </Button>
+          <h1 className="ml-1 text-lg font-semibold tracking-tight">Planner</h1>
         </div>
 
         <div className="flex items-center gap-2">
@@ -82,9 +97,17 @@ export default function Home() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => openCreate(now.getHours() * 60)}>
+        <div className="flex items-center gap-1">
+          <Button size="sm" onClick={() => openCreate(nowMinutes(now))}>
             <Plus className="mr-1 h-4 w-4" /> Nova tarefa
+          </Button>
+          <Button
+            variant={pomodoroOpen ? "secondary" : "ghost"}
+            size="icon"
+            onClick={() => setPomodoroOpen((o) => !o)}
+            aria-label="Pomodoro"
+          >
+            <Timer className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)}>
             <SettingsIcon className="h-4 w-4" />
@@ -104,6 +127,21 @@ export default function Home() {
         )}
 
       <main className="flex min-h-0 flex-1">
+        <aside
+          className={cn(
+            "shrink-0 overflow-hidden border-r transition-all duration-200",
+            listOpen ? "w-72" : "w-0",
+          )}
+        >
+          {planner.hydrated && listOpen && (
+            <TaskList
+              occurrences={occurrences}
+              onToggleDone={toggleDone}
+              onSelect={openEdit}
+            />
+          )}
+        </aside>
+
         <section className="min-w-0 flex-1 px-4 py-2">
           {planner.hydrated ? (
             <Timeline
@@ -111,6 +149,7 @@ export default function Home() {
               now={now}
               occurrences={occurrences}
               onOccurrenceClick={openEdit}
+              onToggleDone={toggleDone}
               onSlotClick={openCreate}
             />
           ) : (
@@ -119,24 +158,17 @@ export default function Home() {
             </div>
           )}
         </section>
-
-        <aside className="hidden w-80 shrink-0 space-y-4 overflow-y-auto border-l p-4 lg:block">
-          {planner.hydrated && (
-            <NowPanel
-              state={activeState}
-              isToday={isToday(day)}
-              onFinish={(taskId) => planner.completeTask(taskId, now)}
-            />
-          )}
-          {planner.hydrated && (
-            <Pomodoro
-              workMinutes={planner.settings.pomodoroWork}
-              breakMinutes={planner.settings.pomodoroBreak}
-              soundEnabled={planner.settings.soundEnabled}
-            />
-          )}
-        </aside>
       </main>
+
+      {planner.hydrated && (
+        <Pomodoro
+          open={pomodoroOpen}
+          onClose={() => setPomodoroOpen(false)}
+          workMinutes={planner.settings.pomodoroWork}
+          breakMinutes={planner.settings.pomodoroBreak}
+          soundEnabled={planner.settings.soundEnabled}
+        />
+      )}
 
       <TaskDialog
         open={draft !== null}
