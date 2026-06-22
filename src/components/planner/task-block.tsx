@@ -23,10 +23,20 @@ export function TaskBlock({
   const top = startMinute * pxPerMinute;
   const height = Math.max(18, (endMinute - startMinute) * pxPerMinute);
 
-  // Overlay (hourly) tasks hug the right edge as a thin strip.
+  // Overlay (hourly) tasks live in a band on the right; regular tasks use the
+  // full width. Within either lane, columns are placed side-by-side so
+  // overlapping items never stack on top of each other.
   const gapPct = 1.5;
-  const widthPct = overlay ? 14 : (100 - gapPct * (columns - 1)) / columns;
-  const leftPct = overlay ? 100 - widthPct : column * (widthPct + gapPct);
+  // Width of the overlay band: scales a bit with column count, capped.
+  const overlayBandPct = overlay ? Math.min(40, 16 + (columns - 1) * 12) : 0;
+  const overlayBandLeftPct = 100 - overlayBandPct;
+
+  const widthPct = overlay
+    ? (overlayBandPct - gapPct * (columns - 1)) / columns
+    : (100 - gapPct * (columns - 1)) / columns;
+  const leftPct = overlay
+    ? overlayBandLeftPct + column * (widthPct + gapPct)
+    : column * (widthPct + gapPct);
 
   const compact = height < 36;
 

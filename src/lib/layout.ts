@@ -7,37 +7,33 @@ export interface PlacedOccurrence {
   column: number;
   /** Total columns in its cluster. */
   columns: number;
-  /** True for hourly tasks rendered as a thin overlay strip on the right. */
+  /** True for hourly tasks rendered in the thin overlay band on the right. */
   overlay: boolean;
 }
 
 /**
- * Greedy column packing for overlapping occurrences (Google-Calendar style).
- * Hourly tasks are split off into an "overlay" lane so they sit on top of
- * regular work instead of squeezing it.
+ * Greedy column packing for a set of occurrences (Google-Calendar style):
+ * transitively-overlapping occurrences are split into side-by-side columns so
+ * none sit on top of another. Returns each occurrence with its column index and
+ * the column count of its cluster.
  */
-export function placeOccurrences(
+function packColumns(
   occurrences: ResolvedOccurrence[],
-): PlacedOccurrence[] {
-  const overlay = occurrences.filter((o) => isHourly(o.task.recurrence));
-  const regular = occurrences.filter((o) => !isHourly(o.task.recurrence));
+): { occurrence: ResolvedOccurrence; column: number; columns: number }[] {
+  const out: { occurrence: ResolvedOccurrence; column: number; columns: number }[] =
+    [];
 
-  const placed: PlacedOccurrence[] = [];
-
-  // Sort by start, then by longer-first for stable packing.
-  const sorted = [...regular].sort(
+  const sorted = [...occurrences].sort(
     (a, b) =>
       a.startMinute - b.startMinute ||
       b.endMinute - b.startMinute - (a.endMinute - a.startMinute),
   );
 
-  // Build clusters of transitively-overlapping occurrences.
   let cluster: ResolvedOccurrence[] = [];
   let clusterEnd = -1;
 
   const flush = () => {
     if (cluster.length === 0) return;
-    // Assign columns within the cluster greedily.
     const columnEnds: number[] = [];
     const assignment = new Map<string, number>();
     for (const occ of cluster) {
@@ -52,12 +48,7 @@ export function placeOccurrences(
     }
     const total = columnEnds.length;
     for (const occ of cluster) {
-      placed.push({
-        occurrence: occ,
-        column: assignment.get(occ.key)!,
-        columns: total,
-        overlay: false,
-      });
+      out.push({ occurrence: occ, column: assignment.get(occ.key)!, columns: total });
     }
     cluster = [];
     clusterEnd = -1;
@@ -72,9 +63,45 @@ export function placeOccurrences(
   }
   flush();
 
-  for (const occ of overlay) {
-    placed.push({ occurrence: occ, column: 0, columns: 1, overlay: true });
-  }
+  return out;
+}
 
-  return placed;
+/**
+ * Lay out hourly occurrences in the overlay band with one column per distinct
+ * hourly task. Because consecutive hourly slots chain into one giant transitive
+ * cluster, per-occurrence packing would explode the column count; grouping by
+ * task instead keeps each task in a stable, readable column (Bunpro always in
+ * its column, "respostas" in the next).
+ */
+function packOverlayByTask(
+  occurrences: ResolvedOccurrence[],
+): { occurrence: ResolvedOccurrence; column: number; columns: number }[] {
+  const taskIds: string[] = [];
+  for (const o of occurrences) {
+    if (!taskIds.includes(o.task.id)) taskIds.push(o.task.id);
+  }
+  const columns = Math.max(1, taskIds.length);
+  return occurrences.map((occurrence) => ({
+    occurrence,
+    column: taskIds.indexOf(occurrence.task.id),
+    columns,
+  }));
+}
+
+/**
+ * Place occurrences for the timeline. Hourly tasks are kept in a separate
+ * "overlay" lane on the right so they sit on top of regular work; regular tasks
+ * are column-packed by overlap, hourly tasks by distinct task, so overlapping
+ * items never stack on top of each other.
+ */
+export function placeOccurrences(
+  occurrences: ResolvedOccurrence[],
+): PlacedOccurrence[] {
+  const overlay = occurrences.filter((o) => isHourly(o.task.recurrence));
+  const regular = occurrences.filter((o) => !isHourly(o.task.recurrence));
+
+  return [
+    ...packColumns(regular).map((p) => ({ ...p, overlay: false })),
+    ...packOverlayByTask(overlay).map((p) => ({ ...p, overlay: true })),
+  ];
 }
