@@ -123,35 +123,30 @@ export function resolveOccurrences(
     }
 
     if (isHourly(task.recurrence)) {
-      // The task starts at startMinute and repeats every `interval` hours from
-      // there until end of day, anchored at the start time. Both the hour and
-      // minute of startMinute are honored. Each slot is completed independently,
-      // keyed by the occurrence's own key.
+      // endMinute on hourly tasks is a repeat cutoff — no slot may START at or
+      // after it. When absent the task repeats until end of day.
+      // Each slot's display end is the start of the next slot (open-ended feel).
       const offset = task.startMinute % 60;
       const firstHour = Math.floor(task.startMinute / 60);
       const interval = hourlyInterval(task.recurrence);
-      const duration =
-        task.endMinute !== null
-          ? Math.max(1, task.endMinute - task.startMinute)
-          : null;
+      const cutoff = task.endMinute ?? MINUTES_IN_DAY;
 
       for (let hour = firstHour; hour < 24; hour += interval) {
         const start = hour * 60 + offset;
         if (start >= MINUTES_IN_DAY) break;
+        if (start >= cutoff) break; // slot starts at or after cutoff — stop
         const occKey = `${task.id}:${key}:${hour}`;
         const doneAt = completions[occKey];
         const done = doneAt !== undefined;
-        const baseEnd =
-          duration !== null
-            ? Math.min(MINUTES_IN_DAY, start + duration)
-            : Math.min(MINUTES_IN_DAY, (hour + interval) * 60 + offset);
+        // Slot ends at the next slot's start (capped at cutoff or end of day).
+        const nextStart = Math.min((hour + interval) * 60 + offset, cutoff, MINUTES_IN_DAY);
         result.push({
           task,
           key: occKey,
           date: key,
           startMinute: start,
-          endMinute: duration === null && done ? doneAt : baseEnd,
-          openEnded: duration === null,
+          endMinute: done ? doneAt : nextStart,
+          openEnded: false,
           scheduled: true,
           completed: done,
           hasDescription,

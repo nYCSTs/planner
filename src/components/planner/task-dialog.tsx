@@ -445,7 +445,9 @@ export function TaskDialog({
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor="end">Término</Label>
+                <Label htmlFor="end">
+                  {hourly ? "Repetir até" : "Término"}
+                </Label>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">definir</span>
                   <Switch checked={hasEnd} onCheckedChange={setHasEnd} />
@@ -464,8 +466,8 @@ export function TaskDialog({
 
           {hasTime && hourly && (
             <p className="text-xs text-muted-foreground">
-              Começa no primeiro horário e repete a cada hora até o fim do dia
-              (ex: 23:00 → só às 23:00; 09:15 → 09:15, 10:15, 11:15…).
+              Repete a partir do primeiro horário. "Repetir até" define quando parar
+              — sem ele vai até o fim do dia. Ex: 14h a cada 2h até 20h → 14h, 16h, 18h.
             </p>
           )}
           {hasTime && !hasEnd && (
