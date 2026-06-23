@@ -168,7 +168,7 @@ export function TaskBlock({
       )}
 
       <div className="flex items-center gap-1 pl-1">
-        {completed ? (
+        {!task.tracked && (completed ? (
           <span className="shrink-0 text-xs leading-none">✅</span>
         ) : (
           <button
@@ -181,7 +181,7 @@ export function TaskBlock({
             className="h-3 w-3 shrink-0 rounded-full border border-current opacity-50 transition hover:opacity-100"
             style={{ borderColor: task.color }}
           />
-        )}
+        ))}
         <span className={cn("truncate font-medium", completed && "line-through")}>
           {task.title}
         </span>

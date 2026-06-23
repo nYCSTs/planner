@@ -74,6 +74,8 @@ export interface Task {
   notifyBeforeEnd?: number;
   /** Per-task sound override for notifications. Falls back to global when undefined. */
   soundEnabled?: boolean;
+  /** True when created via the live tracker (Toggl-style). Hides the done toggle. */
+  tracked?: boolean;
 
   /**
    * When true, occurrences whose end time has already elapsed are hidden — but

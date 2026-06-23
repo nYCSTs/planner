@@ -192,6 +192,7 @@ export function usePlanner() {
         recurrence: { kind: "once" },
         date: todayKey,
         soundEnabled: false, // tracker tasks never trigger the alarm
+        tracked: true,
         hideElapsed: false,
         createdAt: now.toISOString(),
       };
