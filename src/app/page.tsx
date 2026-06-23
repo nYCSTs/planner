@@ -229,39 +229,37 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Split button: main action = new blank task; arrow = dropdown with fork option */}
-          <div ref={newMenuRef} className="relative flex">
+          <Button
+            size="sm"
+            onClick={() => openCreate(nowMinutes(now))}
+          >
+            <Plus className="mr-1 h-4 w-4" /> Nova tarefa
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setTrackPrefill(undefined); setTrackOpen(true); }}
+            aria-label="Registrar agora"
+          >
+            <Clock className="mr-1 h-4 w-4" /> Registrar
+          </Button>
+          {/* Dropdown for fork option */}
+          <div ref={newMenuRef} className="relative">
             <Button
-              size="sm"
-              className="rounded-r-none pr-2"
-              onClick={() => { openCreate(nowMinutes(now)); setNewMenuOpen(false); }}
-            >
-              <Plus className="mr-1 h-4 w-4" /> Nova tarefa
-            </Button>
-            <Button
-              size="sm"
-              className="rounded-l-none border-l border-l-white/20 px-1.5"
+              variant="ghost"
+              size="icon"
               onClick={() => setNewMenuOpen((o) => !o)}
-              aria-label="Mais opções"
+              aria-label="Mais opções de criação"
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
             {newMenuOpen && (
               <>
-                {/* Click-away backdrop */}
                 <div
                   className="fixed inset-0 z-40"
                   onClick={() => setNewMenuOpen(false)}
                 />
                 <div className="absolute right-0 top-full z-50 mt-1 min-w-max rounded-md border bg-popover py-1 shadow-md">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
-                    onClick={() => { setNewMenuOpen(false); setTrackPrefill(undefined); setTrackOpen(true); }}
-                  >
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    Registrar agora…
-                  </button>
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
