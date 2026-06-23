@@ -236,7 +236,6 @@ export default function Home() {
             <Plus className="mr-1 h-4 w-4" /> Nova tarefa
           </Button>
           <Button
-            variant="ghost"
             size="sm"
             onClick={() => { setTrackPrefill(undefined); setTrackOpen(true); }}
             aria-label="Registrar agora"
