@@ -429,6 +429,9 @@ export default function Home() {
               onRenameSubtask={(subtaskId, title, scope) =>
                 planner.renameSubtask(detailOcc.task.id, day, subtaskId, title, scope)
               }
+              onReorderSubtask={(subtaskId, newIndex, scope) =>
+                planner.reorderSubtask(detailOcc.task.id, day, subtaskId, newIndex, scope)
+              }
               onToggleSubtask={(subtaskId) =>
                 planner.toggleSubtaskDone(subtaskId, day)
               }

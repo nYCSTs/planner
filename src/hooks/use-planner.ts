@@ -368,6 +368,43 @@ export function usePlanner() {
     [],
   );
 
+  /** Move a subtask to a new index within its list (global or day override). */
+  const reorderSubtask = useCallback(
+    (
+      taskId: string,
+      day: Date,
+      subtaskId: string,
+      newIndex: number,
+      scope: "global" | "day",
+    ) => {
+      const move = <T extends { id: string }>(arr: T[], id: string, to: number): T[] => {
+        const from = arr.findIndex((s) => s.id === id);
+        if (from === -1) return arr;
+        const next = [...arr];
+        const [item] = next.splice(from, 1);
+        next.splice(Math.max(0, Math.min(next.length, to)), 0, item);
+        return next;
+      };
+      if (scope === "global") {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? { ...t, subtasks: move(t.subtasks ?? [], subtaskId, newIndex) }
+              : t,
+          ),
+        );
+      } else {
+        const key = `${taskId}:${dateKey(day)}`;
+        setOverrides((prev) => {
+          const cur = prev[key];
+          if (!cur) return prev;
+          return { ...prev, [key]: { ...cur, subtasks: move(cur.subtasks ?? [], subtaskId, newIndex) } };
+        });
+      }
+    },
+    [],
+  );
+
   /** Toggle a subtask's done state for a specific day (always per-day). */
   const toggleSubtaskDone = useCallback((subtaskId: string, day: Date) => {
     const key = `${subtaskId}:${dateKey(day)}`;
@@ -443,6 +480,7 @@ export function usePlanner() {
     addSubtask,
     removeSubtask,
     renameSubtask,
+    reorderSubtask,
     toggleSubtaskDone,
     exportData,
     importData,

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { GitFork, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { GitFork, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
@@ -28,6 +28,7 @@ interface TaskDetailProps {
   onAddSubtask: (title: string, scope: "global" | "day") => void;
   onRemoveSubtask: (subtaskId: string, scope: "global" | "day") => void;
   onRenameSubtask: (subtaskId: string, title: string, scope: "global" | "day") => void;
+  onReorderSubtask: (subtaskId: string, newIndex: number, scope: "global" | "day") => void;
   onToggleSubtask: (subtaskId: string) => void;
 }
 
@@ -44,15 +45,19 @@ function recurrenceSummary(occ: ResolvedOccurrence): string {
 function SubtaskRow({
   sub,
   done,
+  dragging,
   onToggle,
   onRemove,
   onRename,
+  onPointerDownGrip,
 }: {
   sub: Subtask;
   done: boolean;
+  dragging: boolean;
   onToggle: () => void;
   onRemove: () => void;
   onRename: (title: string) => void;
+  onPointerDownGrip: (e: React.PointerEvent) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(sub.title);
@@ -73,22 +78,32 @@ function SubtaskRow({
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") save();
-            if (e.key === "Escape") {
-              setValue(sub.title);
-              setEditing(false);
-            }
+            if (e.key === "Escape") { setValue(sub.title); setEditing(false); }
           }}
           onBlur={save}
         />
-        <Button size="sm" className="h-8" onClick={save}>
-          Salvar
-        </Button>
+        <Button size="sm" className="h-8" onClick={save}>Salvar</Button>
       </li>
     );
   }
 
   return (
-    <li className="group flex items-center gap-2.5 py-0.5">
+    <li
+      className={cn(
+        "group flex items-center gap-2.5 py-0.5 transition-opacity",
+        dragging && "opacity-40",
+      )}
+    >
+      {/* Drag handle */}
+      <button
+        type="button"
+        aria-label="Arrastar para reordenar"
+        onPointerDown={onPointerDownGrip}
+        className="shrink-0 cursor-grab touch-none opacity-0 transition group-hover:opacity-100 active:cursor-grabbing"
+      >
+        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+
       <button
         type="button"
         aria-label={done ? "Reabrir" : "Concluir"}
@@ -102,10 +117,7 @@ function SubtaskRow({
       </button>
       <button
         type="button"
-        onClick={() => {
-          setValue(sub.title);
-          setEditing(true);
-        }}
+        onClick={() => { setValue(sub.title); setEditing(true); }}
         className={cn(
           "min-w-0 flex-1 break-words text-left text-sm",
           done && "text-muted-foreground line-through",
@@ -116,10 +128,7 @@ function SubtaskRow({
       <button
         type="button"
         aria-label="Editar subtarefa"
-        onClick={() => {
-          setValue(sub.title);
-          setEditing(true);
-        }}
+        onClick={() => { setValue(sub.title); setEditing(true); }}
         className="opacity-0 transition group-hover:opacity-100"
       >
         <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
@@ -133,6 +142,89 @@ function SubtaskRow({
         <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
       </button>
     </li>
+  );
+}
+
+/**
+ * Renders a list of subtasks with pointer-based drag-to-reorder.
+ * Tracks drag state locally; commits new order via `onReorder(id, newIndex)`.
+ */
+function SortableSubtaskList({
+  subtasks,
+  isDone,
+  onToggle,
+  onRemove,
+  onRename,
+  onReorder,
+}: {
+  subtasks: Subtask[];
+  isDone: (id: string) => boolean;
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+  onRename: (id: string, title: string) => void;
+  onReorder: (id: string, newIndex: number) => void;
+}) {
+  // Local order for live preview during drag.
+  const [localOrder, setLocalOrder] = useState<Subtask[] | null>(null);
+  const dragId = useRef<string | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  const displayed = localOrder ?? subtasks;
+
+  const handlePointerDown = (e: React.PointerEvent, id: string) => {
+    e.preventDefault();
+    dragId.current = id;
+    const startY = e.clientY;
+    let currentOrder = [...subtasks];
+
+    const onMove = (me: PointerEvent) => {
+      const list = listRef.current;
+      if (!list) return;
+      const items = Array.from(list.children) as HTMLElement[];
+      const mouseY = me.clientY;
+      let targetIndex = items.length - 1;
+      for (let i = 0; i < items.length; i++) {
+        const rect = items[i].getBoundingClientRect();
+        if (mouseY < rect.top + rect.height / 2) { targetIndex = i; break; }
+      }
+      const fromIndex = currentOrder.findIndex((s) => s.id === id);
+      if (fromIndex === -1) return;
+      const next = [...currentOrder];
+      const [item] = next.splice(fromIndex, 1);
+      next.splice(targetIndex, 0, item);
+      currentOrder = next;
+      setLocalOrder(next);
+    };
+
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const finalIndex = currentOrder.findIndex((s) => s.id === id);
+      if (finalIndex !== -1) onReorder(id, finalIndex);
+      dragId.current = null;
+      setLocalOrder(null);
+      void startY; // suppress unused warning
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  return (
+    <ul ref={listRef}>
+      {displayed.map((s) => (
+        <SubtaskRow
+          key={s.id}
+          sub={s}
+          done={isDone(s.id)}
+          dragging={dragId.current === s.id}
+          onToggle={() => onToggle(s.id)}
+          onRemove={() => onRemove(s.id)}
+          onRename={(t) => onRename(s.id, t)}
+          onPointerDownGrip={(e) => handlePointerDown(e, s.id)}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -198,6 +290,7 @@ export function TaskDetail({
   onAddSubtask,
   onRemoveSubtask,
   onRenameSubtask,
+  onReorderSubtask,
   onToggleSubtask,
 }: TaskDetailProps) {
   const { task } = occ;
@@ -334,18 +427,14 @@ export function TaskDetail({
                 Subtarefas — gerais
               </p>
             )}
-            <ul>
-              {globalSubs.map((s) => (
-                <SubtaskRow
-                  key={s.id}
-                  sub={s}
-                  done={isDone(s.id)}
-                  onToggle={() => onToggleSubtask(s.id)}
-                  onRemove={() => onRemoveSubtask(s.id, "global")}
-                  onRename={(t) => onRenameSubtask(s.id, t, "global")}
-                />
-              ))}
-            </ul>
+            <SortableSubtaskList
+              subtasks={globalSubs}
+              isDone={isDone}
+              onToggle={(id) => onToggleSubtask(id)}
+              onRemove={(id) => onRemoveSubtask(id, "global")}
+              onRename={(id, t) => onRenameSubtask(id, t, "global")}
+              onReorder={(id, idx) => onReorderSubtask(id, idx, "global")}
+            />
             <AddSubtask onAdd={(t) => onAddSubtask(t, "global")} />
           </section>
         )}
@@ -355,18 +444,14 @@ export function TaskDetail({
             <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Subtarefas — só hoje
             </p>
-            <ul>
-              {daySubs.map((s) => (
-                <SubtaskRow
-                  key={s.id}
-                  sub={s}
-                  done={isDone(s.id)}
-                  onToggle={() => onToggleSubtask(s.id)}
-                  onRemove={() => onRemoveSubtask(s.id, "day")}
-                  onRename={(t) => onRenameSubtask(s.id, t, "day")}
-                />
-              ))}
-            </ul>
+            <SortableSubtaskList
+              subtasks={daySubs}
+              isDone={isDone}
+              onToggle={(id) => onToggleSubtask(id)}
+              onRemove={(id) => onRemoveSubtask(id, "day")}
+              onRename={(id, t) => onRenameSubtask(id, t, "day")}
+              onReorder={(id, idx) => onReorderSubtask(id, idx, "day")}
+            />
             <AddSubtask onAdd={(t) => onAddSubtask(t, "day")} />
           </section>
         )}
