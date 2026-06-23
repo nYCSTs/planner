@@ -123,29 +123,33 @@ export function resolveOccurrences(
     }
 
     if (isHourly(task.recurrence)) {
-      // endMinute on hourly tasks is a repeat cutoff — no slot may START at or
-      // after it. When absent the task repeats until end of day.
-      // Each slot's display end is the start of the next slot (open-ended feel).
+      // endMinute on hourly tasks is an inclusive cutoff — the last slot may
+      // START exactly at cutoff; no slot may start AFTER it.
+      // When absent the task repeats until end of day.
       const offset = task.startMinute % 60;
       const firstHour = Math.floor(task.startMinute / 60);
       const interval = hourlyInterval(task.recurrence);
-      const cutoff = task.endMinute ?? MINUTES_IN_DAY;
+      const cutoff = task.endMinute ?? MINUTES_IN_DAY - 1;
+      // Per-slot duration in minutes (optional). When absent each slot fills
+      // the gap to the next slot start (capped at cutoff / end of day).
+      const slotDuration = task.recurrence.everyHourDuration ?? null;
 
       for (let hour = firstHour; hour < 24; hour += interval) {
         const start = hour * 60 + offset;
         if (start >= MINUTES_IN_DAY) break;
-        if (start >= cutoff) break; // slot starts at or after cutoff — stop
+        if (start > cutoff) break; // strictly after cutoff — stop
         const occKey = `${task.id}:${key}:${hour}`;
         const doneAt = completions[occKey];
         const done = doneAt !== undefined;
-        // Slot ends at the next slot's start (capped at cutoff or end of day).
-        const nextStart = Math.min((hour + interval) * 60 + offset, cutoff, MINUTES_IN_DAY);
+        const slotEnd = slotDuration !== null
+          ? Math.min(start + slotDuration, MINUTES_IN_DAY)
+          : Math.min((hour + interval) * 60 + offset, MINUTES_IN_DAY);
         result.push({
           task,
           key: occKey,
           date: key,
           startMinute: start,
-          endMinute: done ? doneAt : nextStart,
+          endMinute: done ? doneAt : slotEnd,
           openEnded: false,
           scheduled: true,
           completed: done,

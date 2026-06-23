@@ -26,6 +26,11 @@ export interface Recurrence {
    * `everyHour: true`) repeating every hour as before.
    */
   everyHourInterval?: number;
+  /**
+   * Duration in minutes of each hourly slot. When omitted each slot fills the
+   * gap until the next one starts (or the cutoff / end-of-day).
+   */
+  everyHourDuration?: number;
 }
 
 /** A checklist item under a task. */

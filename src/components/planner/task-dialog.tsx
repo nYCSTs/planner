@@ -90,6 +90,7 @@ export function TaskDialog({
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   const [everyHour, setEveryHour] = useState(false);
   const [everyHourInterval, setEveryHourInterval] = useState(1);
+  const [everyHourDuration, setEveryHourDuration] = useState<number | "">(60);
   const [hideElapsed, setHideElapsed] = useState(false);
   const [notifyStart, setNotifyStart] = useState<number>(defaultNotifyStart);
   const [notifyEnd, setNotifyEnd] = useState<number>(defaultNotifyEnd);
@@ -113,6 +114,7 @@ export function TaskDialog({
       setWeekdays(editing.recurrence.weekdays ?? []);
       setEveryHour(editing.recurrence.everyHour ?? false);
       setEveryHourInterval(editing.recurrence.everyHourInterval ?? 1);
+      setEveryHourDuration(editing.recurrence.everyHourDuration ?? 60);
       setHideElapsed(editing.hideElapsed ?? false);
       setNotifyStart(editing.notifyBeforeStart ?? defaultNotifyStart);
       setNotifyEnd(editing.notifyBeforeEnd ?? defaultNotifyEnd);
@@ -130,6 +132,7 @@ export function TaskDialog({
       setWeekdays([]);
       setEveryHour(false);
       setEveryHourInterval(1);
+      setEveryHourDuration(60);
       setHideElapsed(false);
       setNotifyStart(defaultNotifyStart);
       setNotifyEnd(defaultNotifyEnd);
@@ -198,6 +201,7 @@ export function TaskDialog({
           weekdays: kind === "custom" ? weekdays : undefined,
           everyHour: hourly,
           everyHourInterval: hourly ? Math.max(1, everyHourInterval) : undefined,
+          everyHourDuration: hourly && everyHourDuration !== "" ? Math.max(1, everyHourDuration) : undefined,
         },
         date: kind === "once" ? dateKey(day) : undefined,
         hideElapsed: hourly ? false : hideElapsed,
@@ -368,22 +372,39 @@ export function TaskDialog({
                 />
               </div>
               {everyHour && (
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-sm text-muted-foreground">A cada</span>
-                  <Input
-                    id="everyHourInterval"
-                    type="number"
-                    min={1}
-                    max={23}
-                    value={everyHourInterval}
-                    onChange={(e) =>
-                      setEveryHourInterval(Math.max(1, Number(e.target.value)))
-                    }
-                    className="w-20"
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    hora{everyHourInterval === 1 ? "" : "s"}
-                  </span>
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">A cada</span>
+                    <Input
+                      id="everyHourInterval"
+                      type="number"
+                      min={1}
+                      max={23}
+                      value={everyHourInterval}
+                      onChange={(e) =>
+                        setEveryHourInterval(Math.max(1, Number(e.target.value)))
+                      }
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      hora{everyHourInterval === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Duração</span>
+                    <Input
+                      id="everyHourDuration"
+                      type="number"
+                      min={1}
+                      max={1439}
+                      value={everyHourDuration}
+                      onChange={(e) =>
+                        setEveryHourDuration(e.target.value === "" ? "" : Math.max(1, Number(e.target.value)))
+                      }
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">min por sessão</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -466,8 +487,7 @@ export function TaskDialog({
 
           {hasTime && hourly && (
             <p className="text-xs text-muted-foreground">
-              Repete a partir do primeiro horário. "Repetir até" define quando parar
-              — sem ele vai até o fim do dia. Ex: 14h a cada 2h até 20h → 14h, 16h, 18h.
+              Ex: início 14h, a cada 2h, até 20h, 30 min → sessões às 14h, 16h, 18h e 20h, cada uma com 30 min.
             </p>
           )}
           {hasTime && !hasEnd && (
