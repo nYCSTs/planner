@@ -65,6 +65,8 @@ function recurrenceMatchesWeekday(rec: Recurrence, weekday: Weekday): boolean {
 
 /** Does this task have an occurrence on the given day? */
 function taskOccursOn(task: Task, day: Date): boolean {
+  // Unscheduled tasks appear on every day regardless of their creation date.
+  if (task.startMinute === null) return true;
   const key = dateKey(day);
   if (task.recurrence.kind === "once") {
     return task.date === key;

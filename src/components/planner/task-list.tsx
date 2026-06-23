@@ -93,7 +93,10 @@ export function TaskList({
   onAddUnscheduled,
 }: TaskListProps) {
   const [tab, setTab] = useState<Tab>("scheduled");
-  const rows = tab === "scheduled" ? scheduled : unscheduled;
+  const sortedUnscheduled = [...unscheduled].sort(
+    (a, b) => Number(a.completed) - Number(b.completed),
+  );
+  const rows = tab === "scheduled" ? scheduled : sortedUnscheduled;
 
   return (
     <div className="flex h-full flex-col">
