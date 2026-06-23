@@ -78,6 +78,7 @@ export function TaskDialog({
   onBack,
 }: TaskDialogProps) {
   const editing = draft?.task;
+  const isTracked = Boolean(editing?.tracked);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -227,7 +228,9 @@ export function TaskDialog({
               <ChevronLeft className="h-4 w-4" /> Voltar
             </button>
           )}
-          <DialogTitle>{editing ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
+          <DialogTitle>
+            {isTracked ? "Editar registro" : editing ? "Editar tarefa" : "Nova tarefa"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -306,7 +309,7 @@ export function TaskDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
+          {!isTracked && <div className="space-y-1.5">
             <Label>Repetição</Label>
             <Select value={kind} onValueChange={(v) => setKind(v as RecurrenceKind)}>
               <SelectTrigger>
@@ -320,9 +323,9 @@ export function TaskDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
 
-          {kind === "custom" && (
+          {!isTracked && kind === "custom" && (
             <div className="flex flex-wrap gap-1.5">
               {WEEKDAY_LABELS.map((w) => (
                 <button
@@ -342,19 +345,21 @@ export function TaskDialog({
             </div>
           )}
 
-          <div className="flex items-center justify-between rounded-md border px-3 py-2">
-            <div>
-              <Label htmlFor="hasTime" className="text-sm font-normal">
-                Definir horário
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Desligue para uma tarefa sem horário (não vai para a timeline).
-              </p>
+          {!isTracked && (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <Label htmlFor="hasTime" className="text-sm font-normal">
+                  Definir horário
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Desligue para uma tarefa sem horário (não vai para a timeline).
+                </p>
+              </div>
+              <Switch id="hasTime" checked={hasTime} onCheckedChange={setHasTime} />
             </div>
-            <Switch id="hasTime" checked={hasTime} onCheckedChange={setHasTime} />
-          </div>
+          )}
 
-          {hasTime && kind !== "once" && (
+          {!isTracked && hasTime && kind !== "once" && (
             <div className="space-y-2 rounded-md border px-3 py-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -410,7 +415,7 @@ export function TaskDialog({
             </div>
           )}
 
-          {hasTime && !everyHour && (
+          {!isTracked && hasTime && !everyHour && (
             <div className="flex items-center justify-between rounded-md border px-3 py-2">
               <div>
                 <Label htmlFor="hideElapsed" className="text-sm font-normal">
@@ -428,7 +433,7 @@ export function TaskDialog({
             </div>
           )}
 
-          {hasTime && (
+          {!isTracked && hasTime && (
             <div className="flex items-center justify-between rounded-md border px-3 py-2">
               <div>
                 <Label htmlFor="soundOn" className="text-sm font-normal">
@@ -485,12 +490,12 @@ export function TaskDialog({
           </div>
           )}
 
-          {hasTime && hourly && (
+          {!isTracked && hasTime && hourly && (
             <p className="text-xs text-muted-foreground">
               Ex: início 14h, a cada 2h, até 20h, 30 min → sessões às 14h, 16h, 18h e 20h, cada uma com 30 min.
             </p>
           )}
-          {hasTime && !hasEnd && (
+          {!isTracked && hasTime && !hasEnd && (
             <p className="text-xs text-muted-foreground">
               Sem término definido — você finaliza manualmente pela timeline.
             </p>
@@ -501,7 +506,7 @@ export function TaskDialog({
             </p>
           )}
 
-          {hasTime && (
+          {!isTracked && hasTime && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="ns">Avisar antes de iniciar (min)</Label>
