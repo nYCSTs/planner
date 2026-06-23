@@ -7,10 +7,12 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
   GitFork,
   ListTodo,
   Plus,
   Settings as SettingsIcon,
+  Square,
   Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,12 +23,14 @@ import { Timeline } from "@/components/planner/timeline";
 import { TaskDialog, type TaskDraft } from "@/components/planner/task-dialog";
 import { TaskList } from "@/components/planner/task-list";
 import { ForkDialog } from "@/components/planner/fork-dialog";
+import { TrackDialog } from "@/components/planner/track-dialog";
 import { Pomodoro } from "@/components/planner/pomodoro";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
 import { useNotifications } from "@/hooks/use-notifications";
 import { resolveOccurrences, nowMinutes } from "@/lib/time";
 import type { ResolvedOccurrence, Task } from "@/types";
+import { dateKey } from "@/lib/time";
 import { TaskDetail } from "@/components/planner/task-detail";
 import {
   Dialog,
@@ -51,6 +55,14 @@ export default function Home() {
   const [forkOpen, setForkOpen] = useState(false);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const newMenuRef = useRef<HTMLDivElement>(null);
+  const [trackOpen, setTrackOpen] = useState(false);
+  const [trackingId, setTrackingId] = useState<string | null>(null);
+  const [trackingStartMs, setTrackingStartMs] = useState<number | null>(null);
+  // Whether the ForkDialog was opened from the tracker (vs from detail/header).
+  const [forkForTracker, setForkForTracker] = useState(false);
+  const [trackPrefill, setTrackPrefill] = useState<
+    Pick<Task, "title" | "color" | "subtasks"> | undefined
+  >(undefined);
 
   // Keep the live theme in sync with persisted settings after hydration.
   useEffect(() => {
@@ -127,9 +139,43 @@ export default function Home() {
   // Fork a chosen task into a new copy for targetDay, then open it in the
   // edit form so the user sets the new time.
   const handleFork = (sourceId: string, targetDay: Date) => {
+    if (forkForTracker) {
+      // Fork chosen from the tracker: extract fields as prefill, don't create task yet.
+      const source = planner.tasks.find((t) => t.id === sourceId);
+      setForkOpen(false);
+      setForkForTracker(false);
+      if (source) {
+        // Merge global subtasks + the day's override subtasks as prefill.
+        const overrideKey = `${sourceId}:${dateKey(targetDay)}`;
+        const overrideSubs = planner.overrides[overrideKey]?.subtasks ?? [];
+        setTrackPrefill({
+          title: source.title,
+          color: source.color,
+          subtasks: [...(source.subtasks ?? []), ...overrideSubs],
+        });
+      }
+      setTrackOpen(true);
+      return;
+    }
     const forked = planner.forkTask(sourceId, day, targetDay);
     setForkOpen(false);
     if (forked) setDraft({ startMinute: null, task: forked });
+  };
+
+  const handleTrackStart = (title: string, color: string, startMs: number) => {
+    const task = planner.startTracking(title, color, trackPrefill?.subtasks);
+    setTrackingId(task.id);
+    setTrackingStartMs(startMs);
+    setTrackPrefill(undefined);
+    // Navigate to today so the running task is visible on the timeline.
+    setDay(new Date());
+  };
+
+  const handleTrackStop = () => {
+    if (trackingId) planner.stopTracking(trackingId);
+    setTrackingId(null);
+    setTrackingStartMs(null);
+    setTrackOpen(false);
   };
 
   // The occurrence currently shown in the detail dialog (today/day-scoped).
@@ -206,6 +252,14 @@ export default function Home() {
                   <button
                     type="button"
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                    onClick={() => { setNewMenuOpen(false); setTrackPrefill(undefined); setTrackOpen(true); }}
+                  >
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    Registrar agora…
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
                     onClick={() => { setNewMenuOpen(false); setForkOpen(true); }}
                   >
                     <GitFork className="h-4 w-4 text-muted-foreground" />
@@ -215,6 +269,19 @@ export default function Home() {
               </>
             )}
           </div>
+          {trackingId && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => { setTrackOpen(true); }}
+              className="gap-1.5"
+              aria-label="Tracker em andamento"
+            >
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white/80" />
+              <Square className="h-3.5 w-3.5" />
+              Parar
+            </Button>
+          )}
           <Button
             variant={pomodoroOpen ? "secondary" : "ghost"}
             size="icon"
@@ -365,11 +432,21 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
+      <TrackDialog
+        open={trackOpen}
+        prefill={trackPrefill}
+        trackingStartMs={trackingStartMs}
+        onClose={() => { setTrackOpen(false); if (!trackingId) setTrackPrefill(undefined); }}
+        onStart={handleTrackStart}
+        onStop={handleTrackStop}
+        onOpenFork={() => { setForkForTracker(true); setForkOpen(true); setTrackOpen(false); }}
+      />
+
       <ForkDialog
         open={forkOpen}
         tasks={planner.tasks}
         defaultDay={day}
-        onClose={() => setForkOpen(false)}
+        onClose={() => { setForkOpen(false); setForkForTracker(false); }}
         onPick={handleFork}
       />
 

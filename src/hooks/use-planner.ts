@@ -82,9 +82,14 @@ export function usePlanner() {
       const source = tasks.find((t) => t.id === sourceId);
       if (!source) return null;
 
-      const fromKey = dateKey(fromDay);
+      // For "once" tasks use their own date; for recurring tasks use fromDay.
+      const effectiveFromKey =
+        source.recurrence.kind === "once" && source.date
+          ? source.date
+          : dateKey(fromDay);
+
       const forKey = dateKey(forDay);
-      const sourceOverride = overrides[`${sourceId}:${fromKey}`];
+      const sourceOverride = overrides[`${sourceId}:${effectiveFromKey}`];
 
       // Merge global + that day's pontual subtasks, remapping to fresh ids and
       // remembering which were done so we can mark the copies done.
@@ -94,7 +99,7 @@ export function usePlanner() {
       ];
       const newSubs = sourceSubs.map((s) => ({
         sub: { id: uid(), title: s.title },
-        wasDone: Boolean(subtaskDone[`${s.id}:${fromKey}`]),
+        wasDone: Boolean(subtaskDone[`${s.id}:${effectiveFromKey}`]),
       }));
 
       const newId = uid();
@@ -127,6 +132,48 @@ export function usePlanner() {
 
   const deleteTask = useCallback((id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  /**
+   * Create a live-tracking task starting right now (open-ended, "once", today).
+   * Returns the created task so the caller can hold its id to stop it later.
+   */
+  const startTracking = useCallback(
+    (
+      title: string,
+      color: string,
+      subtasks?: Task["subtasks"],
+    ): Task => {
+      const now = new Date();
+      const start = now.getHours() * 60 + now.getMinutes();
+      const task: Task = {
+        id: uid(),
+        title,
+        color,
+        subtasks,
+        startMinute: start,
+        endMinute: null,
+        recurrence: { kind: "once" },
+        date: dateKey(now),
+        soundEnabled: undefined,
+        hideElapsed: false,
+        createdAt: now.toISOString(),
+      };
+      setTasks((prev) => [...prev, task]);
+      return task;
+    },
+    [],
+  );
+
+  /**
+   * Stop a live-tracking task by setting its endMinute to the current minute.
+   */
+  const stopTracking = useCallback((taskId: string) => {
+    const now = new Date();
+    const end = now.getHours() * 60 + now.getMinutes();
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, endMinute: end } : t)),
+    );
   }, []);
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
@@ -343,6 +390,8 @@ export function usePlanner() {
     updateTask,
     deleteTask,
     forkTask,
+    startTracking,
+    stopTracking,
     updateSettings,
     toggleDone,
     setDayDescription,
