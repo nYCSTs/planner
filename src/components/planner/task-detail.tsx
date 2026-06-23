@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { dateKey, minutesToTime, isHourly } from "@/lib/time";
 import type { DayOverride, ResolvedOccurrence, Subtask } from "@/types";
 
@@ -22,6 +24,7 @@ interface TaskDetailProps {
   day: Date;
   override: DayOverride | undefined;
   subtaskDone: Record<string, boolean>;
+  completions: Record<string, number>;
   onEdit: () => void;
   onFork: () => void;
   onSetDayDescription: (description: string) => void;
@@ -284,6 +287,7 @@ export function TaskDetail({
   day,
   override,
   subtaskDone,
+  completions,
   onEdit,
   onFork,
   onSetDayDescription,
@@ -305,6 +309,11 @@ export function TaskDetail({
   const dayDesc = override?.description?.trim();
 
   const isDone = (subId: string) => Boolean(subtaskDone[`${subId}:${dk}`]);
+
+  // For unscheduled tasks, completions[task.id] holds the unix timestamp of completion.
+  const unscheduledCompletedAt = !occ.scheduled && occ.completed
+    ? completions[task.id]
+    : undefined;
 
   return (
     <div className="space-y-4">
@@ -332,6 +341,8 @@ export function TaskDetail({
               ? `${minutesToTime(occ.startMinute)}${
                   occ.openEnded ? " · em aberto" : ` – ${minutesToTime(occ.endMinute)}`
                 } · `
+              : unscheduledCompletedAt
+              ? `Concluída em ${format(new Date(unscheduledCompletedAt), "d 'de' MMM, HH:mm", { locale: ptBR })} · `
               : "Sem horário · "}
             {recurrenceSummary(occ)}
           </p>

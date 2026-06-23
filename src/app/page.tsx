@@ -405,6 +405,7 @@ export default function Home() {
               day={day}
               override={planner.overrides[`${detailOcc.task.id}:${detailOcc.date}`]}
               subtaskDone={planner.subtaskDone}
+              completions={planner.completions}
               onEdit={() => {
                 const task = detailOcc.task;
                 setDetailId(null);

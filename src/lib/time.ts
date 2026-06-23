@@ -105,10 +105,10 @@ export function resolveOccurrences(
       (task.subtasks?.length ?? 0) > 0 || (override?.subtasks?.length ?? 0) > 0,
     );
 
-    // Unscheduled task: no time, never on the timeline. Resolves once per day so
-    // it can be listed and completed per day under "Sem horário".
+    // Unscheduled task: appears on every day with a global completion key
+    // (no date suffix) so marking done on any day persists everywhere.
     if (task.startMinute === null) {
-      const completionKey = `${task.id}:${key}`;
+      const completionKey = task.id;
       result.push({
         task,
         key: completionKey,

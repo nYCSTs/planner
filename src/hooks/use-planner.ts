@@ -235,9 +235,14 @@ export function usePlanner() {
    */
   const toggleDone = useCallback((occ: ResolvedOccurrence) => {
     const makeDone = !occ.completed;
-    const key = occ.key; // `${taskId}:${date}` or `${taskId}:${date}:${hour}`
+    const key = occ.key;
     setCompletions((prev) => {
-      if (makeDone) return { ...prev, [key]: occ.startMinute };
+      if (makeDone) {
+        // For unscheduled tasks store the unix timestamp so we can show "concluída em X".
+        // For scheduled tasks store startMinute (existing behaviour).
+        const value = occ.scheduled ? occ.startMinute : Date.now();
+        return { ...prev, [key]: value };
+      }
       const next = { ...prev };
       delete next[key];
       return next;
