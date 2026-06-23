@@ -39,6 +39,8 @@ export function useNotifications(
   occurrences: ResolvedOccurrence[],
   now: Date,
   settings: Settings,
+  /** Task id currently being live-tracked — never triggers notifications. */
+  trackingTaskId?: string | null,
 ) {
   const [permission, setPermission] = useState<Permission>("default");
   const [alarmActive, setAlarmActive] = useState(false);
@@ -78,6 +80,7 @@ export function useNotifications(
     for (const occ of occurrences) {
       if (occ.completed) continue;
       if (!occ.scheduled) continue; // unscheduled tasks have no time to notify
+      if (trackingTaskId && occ.task.id === trackingTaskId) continue; // live tracker
       const leadStart = occ.task.notifyBeforeStart ?? settings.notifyBeforeStart;
       const leadEnd = occ.task.notifyBeforeEnd ?? settings.notifyBeforeEnd;
       const sound = occ.task.soundEnabled ?? settings.soundEnabled;

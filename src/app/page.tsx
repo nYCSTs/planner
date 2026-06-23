@@ -28,9 +28,8 @@ import { Pomodoro } from "@/components/planner/pomodoro";
 import { usePlanner } from "@/hooks/use-planner";
 import { useNow } from "@/hooks/use-now";
 import { useNotifications } from "@/hooks/use-notifications";
-import { resolveOccurrences, nowMinutes } from "@/lib/time";
+import { resolveOccurrences, nowMinutes, dateKey } from "@/lib/time";
 import type { ResolvedOccurrence, Task } from "@/types";
-import { dateKey } from "@/lib/time";
 import { TaskDetail } from "@/components/planner/task-detail";
 import {
   Dialog,
@@ -60,26 +59,36 @@ export default function Home() {
   const [trackingStartMs, setTrackingStartMs] = useState<number | null>(null);
   // Whether the ForkDialog was opened from the tracker (vs from detail/header).
   const [forkForTracker, setForkForTracker] = useState(false);
+  // Prefill for the tracker: just title+color from a chosen source task.
   const [trackPrefill, setTrackPrefill] = useState<
-    Pick<Task, "title" | "color" | "subtasks"> | undefined
+    Pick<Task, "title" | "color"> | undefined
   >(undefined);
+  // When forking into tracker, remember source so startTracking can do the full fork.
+  const [trackForkSourceId, setTrackForkSourceId] = useState<string | undefined>(undefined);
 
   // Keep the live theme in sync with persisted settings after hydration.
   useEffect(() => {
     if (planner.hydrated) setTheme(planner.settings.theme);
   }, [planner.hydrated, planner.settings.theme, setTheme]);
 
-  const occurrences = useMemo(
-    () =>
-      resolveOccurrences(
-        planner.tasks,
-        day,
-        planner.completions,
-        now,
-        planner.overrides,
-      ),
-    [planner.tasks, day, planner.completions, now, planner.overrides],
-  );
+  const occurrences = useMemo(() => {
+    const resolved = resolveOccurrences(
+      planner.tasks,
+      day,
+      planner.completions,
+      now,
+      planner.overrides,
+    );
+    // Live tracker: update the running task's endMinute to currentMinute so the
+    // block grows in real time instead of stretching to end-of-day.
+    if (!trackingId) return resolved;
+    const currentMin = nowMinutes(now);
+    return resolved.map((o) =>
+      o.task.id === trackingId
+        ? { ...o, endMinute: Math.max(o.startMinute + 1, currentMin) }
+        : o,
+    );
+  }, [planner.tasks, day, planner.completions, now, planner.overrides, trackingId]);
 
   // Timeline only shows scheduled occurrences; the list shows both lanes.
   const scheduledOccurrences = useMemo(
@@ -100,7 +109,7 @@ export default function Home() {
   );
 
   const { permission, requestPermission, alarmActive, dismissAlarm } =
-    useNotifications(todayOccurrences, now, planner.settings);
+    useNotifications(todayOccurrences, now, planner.settings, trackingId);
 
   const openCreate = (startMinute: number) => setDraft({ startMinute });
 
@@ -140,19 +149,14 @@ export default function Home() {
   // edit form so the user sets the new time.
   const handleFork = (sourceId: string, targetDay: Date) => {
     if (forkForTracker) {
-      // Fork chosen from the tracker: extract fields as prefill, don't create task yet.
+      // Fork chosen from the tracker: store source id for startTracking to use.
+      // Don't create the task yet — only show title/color as prefill.
       const source = planner.tasks.find((t) => t.id === sourceId);
       setForkOpen(false);
       setForkForTracker(false);
       if (source) {
-        // Merge global subtasks + the day's override subtasks as prefill.
-        const overrideKey = `${sourceId}:${dateKey(targetDay)}`;
-        const overrideSubs = planner.overrides[overrideKey]?.subtasks ?? [];
-        setTrackPrefill({
-          title: source.title,
-          color: source.color,
-          subtasks: [...(source.subtasks ?? []), ...overrideSubs],
-        });
+        setTrackPrefill({ title: source.title, color: source.color });
+        setTrackForkSourceId(sourceId);
       }
       setTrackOpen(true);
       return;
@@ -163,10 +167,11 @@ export default function Home() {
   };
 
   const handleTrackStart = (title: string, color: string, startMs: number) => {
-    const task = planner.startTracking(title, color, trackPrefill?.subtasks);
+    const task = planner.startTracking(title, color, trackForkSourceId, day);
     setTrackingId(task.id);
     setTrackingStartMs(startMs);
     setTrackPrefill(undefined);
+    setTrackForkSourceId(undefined);
     // Navigate to today so the running task is visible on the timeline.
     setDay(new Date());
   };
@@ -446,7 +451,10 @@ export default function Home() {
         open={forkOpen}
         tasks={planner.tasks}
         defaultDay={day}
-        onClose={() => { setForkOpen(false); setForkForTracker(false); }}
+        onClose={() => {
+          setForkOpen(false);
+          if (forkForTracker) { setForkForTracker(false); setTrackOpen(true); }
+        }}
         onPick={handleFork}
       />
 

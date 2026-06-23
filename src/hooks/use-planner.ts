@@ -136,16 +136,52 @@ export function usePlanner() {
 
   /**
    * Create a live-tracking task starting right now (open-ended, "once", today).
+   * When `forkSourceId` is provided the new task is a fork of that source
+   * (copies title/color/subtasks, carries done state) — the caller should NOT
+   * pass title/color in that case, they are taken from the source.
    * Returns the created task so the caller can hold its id to stop it later.
    */
   const startTracking = useCallback(
     (
       title: string,
       color: string,
-      subtasks?: Task["subtasks"],
+      forkSourceId?: string,
+      forkFromDay?: Date,
     ): Task => {
       const now = new Date();
       const start = now.getHours() * 60 + now.getMinutes();
+      const todayKey = dateKey(now);
+
+      let subtasks: Task["subtasks"];
+      let doneToCarry: Array<{ id: string; key: string }> = [];
+
+      if (forkSourceId) {
+        const source = tasks.find((t) => t.id === forkSourceId);
+        if (source) {
+          const fromKey =
+            source.recurrence.kind === "once" && source.date
+              ? source.date
+              : dateKey(forkFromDay ?? now);
+          const sourceOverride = overrides[`${forkSourceId}:${fromKey}`];
+          const sourceSubs = [
+            ...(source.subtasks ?? []),
+            ...(sourceOverride?.subtasks ?? []),
+          ];
+          const remapped = sourceSubs.map((s) => ({
+            newId: uid(),
+            title: s.title,
+            wasDone: Boolean(subtaskDone[`${s.id}:${fromKey}`]),
+          }));
+          subtasks = remapped.map((r) => ({ id: r.newId, title: r.title }));
+          doneToCarry = remapped
+            .filter((r) => r.wasDone)
+            .map((r) => ({ id: r.newId, key: `${r.newId}:${todayKey}` }));
+          // Use source title/color when forking.
+          title = source.title;
+          color = source.color;
+        }
+      }
+
       const task: Task = {
         id: uid(),
         title,
@@ -154,15 +190,24 @@ export function usePlanner() {
         startMinute: start,
         endMinute: null,
         recurrence: { kind: "once" },
-        date: dateKey(now),
-        soundEnabled: undefined,
+        date: todayKey,
+        soundEnabled: false, // tracker tasks never trigger the alarm
         hideElapsed: false,
         createdAt: now.toISOString(),
       };
       setTasks((prev) => [...prev, task]);
+
+      if (doneToCarry.length > 0) {
+        setSubtaskDone((prev) => {
+          const next = { ...prev };
+          for (const d of doneToCarry) next[d.key] = true;
+          return next;
+        });
+      }
+
       return task;
     },
-    [],
+    [tasks, overrides, subtaskDone],
   );
 
   /**

@@ -18,8 +18,8 @@ import type { Task } from "@/types";
 
 interface TrackDialogProps {
   open: boolean;
-  /** Pre-filled from a fork — carries title, color, subtasks. */
-  prefill?: Pick<Task, "title" | "color" | "subtasks">;
+  /** Pre-filled from a fork — title and color shown in the form. */
+  prefill?: Pick<Task, "title" | "color">;
   /**
    * When non-null the dialog opens in "running" mode (tracker already started).
    * The value is the ms timestamp of when tracking started.
