@@ -7,6 +7,8 @@ import type {
   ResolvedOccurrence,
   DayOverride,
   Subtask,
+  SkipRecord,
+  Tag,
 } from "@/types";
 import { DEFAULT_SETTINGS } from "@/types";
 import { storage } from "@/lib/storage";
@@ -28,6 +30,8 @@ export function usePlanner() {
   const [completions, setCompletions] = useState<Record<string, number>>({});
   const [overrides, setOverrides] = useState<Record<string, DayOverride>>({});
   const [subtaskDone, setSubtaskDone] = useState<Record<string, boolean>>({});
+  const [skips, setSkips] = useState<Record<string, SkipRecord>>({});
+  const [tags, setTags] = useState<Tag[]>([]);
 
   // Hydrate once on mount from localStorage (external system).
   useEffect(() => {
@@ -37,6 +41,8 @@ export function usePlanner() {
     setCompletions(storage.loadCompletions());
     setOverrides(storage.loadOverrides());
     setSubtaskDone(storage.loadSubtaskDone());
+    setSkips(storage.loadSkips());
+    setTags(storage.loadTags());
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -57,6 +63,12 @@ export function usePlanner() {
   useEffect(() => {
     if (hydrated) storage.saveSubtaskDone(subtaskDone);
   }, [subtaskDone, hydrated]);
+  useEffect(() => {
+    if (hydrated) storage.saveSkips(skips);
+  }, [skips, hydrated]);
+  useEffect(() => {
+    if (hydrated) storage.saveTags(tags);
+  }, [tags, hydrated]);
 
   const addTask = useCallback((task: Omit<Task, "id" | "createdAt">) => {
     const full: Task = { ...task, id: uid(), createdAt: new Date().toISOString() };
@@ -134,6 +146,30 @@ export function usePlanner() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // --- Tags (labels) ---------------------------------------------------------
+
+  const addTag = useCallback((label: string, color: string): Tag => {
+    const tag: Tag = { id: uid(), label: label.trim(), color };
+    setTags((prev) => [...prev, tag]);
+    return tag;
+  }, []);
+
+  const updateTag = useCallback((id: string, patch: Partial<Omit<Tag, "id">>) => {
+    setTags((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }, []);
+
+  /** Delete a tag and strip its id from every task that referenced it. */
+  const deleteTag = useCallback((id: string) => {
+    setTags((prev) => prev.filter((t) => t.id !== id));
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.tags?.includes(id)
+          ? { ...t, tags: t.tags.filter((x) => x !== id) }
+          : t,
+      ),
+    );
+  }, []);
+
   /**
    * Create a live-tracking task starting right now (open-ended, "once", today).
    * When `forkSourceId` is provided the new task is a fork of that source
@@ -193,7 +229,6 @@ export function usePlanner() {
         date: todayKey,
         soundEnabled: false, // tracker tasks never trigger the alarm
         tracked: true,
-        hideElapsed: false,
         createdAt: now.toISOString(),
       };
       setTasks((prev) => [...prev, task]);
@@ -247,6 +282,21 @@ export function usePlanner() {
       delete next[key];
       return next;
     });
+  }, []);
+
+  /**
+   * Toggle an occurrence's "skipped" state (não feita / pulada).
+   * Setting a skip clears any completion for that key and vice-versa.
+   */
+  const toggleSkip = useCallback((occ: ResolvedOccurrence, reason?: string) => {
+    const key = occ.key;
+    if (occ.skipped) {
+      setSkips((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    } else {
+      // Clear any existing completion when skipping.
+      setCompletions((prev) => { const n = { ...prev }; delete n[key]; return n; });
+      setSkips((prev) => ({ ...prev, [key]: { reason: reason?.trim() || undefined } }));
+    }
   }, []);
 
   // --- Per-day overrides (description / subtasks that apply to one day) -----
@@ -425,11 +475,11 @@ export function usePlanner() {
   /** Serialize everything to a JSON backup string. */
   const exportData = useCallback((): string => {
     return JSON.stringify(
-      { version: 2, tasks, settings, completions, overrides, subtaskDone },
+      { version: 3, tasks, settings, completions, overrides, subtaskDone, skips, tags },
       null,
       2,
     );
-  }, [tasks, settings, completions, overrides, subtaskDone]);
+  }, [tasks, settings, completions, overrides, subtaskDone, skips, tags]);
 
   /**
    * Replace state from a backup JSON string. Validates the shape loosely and
@@ -443,6 +493,8 @@ export function usePlanner() {
       completions?: unknown;
       overrides?: unknown;
       subtaskDone?: unknown;
+      skips?: unknown;
+      tags?: unknown;
     };
     if (!Array.isArray(parsed.tasks)) {
       throw new Error("Backup inválido: 'tasks' ausente ou malformado.");
@@ -454,7 +506,6 @@ export function usePlanner() {
     if (parsed.completions && typeof parsed.completions === "object") {
       setCompletions(parsed.completions as Record<string, number>);
     }
-    // overrides/subtaskDone are optional (older backups won't have them).
     setOverrides(
       parsed.overrides && typeof parsed.overrides === "object"
         ? (parsed.overrides as Record<string, DayOverride>)
@@ -465,6 +516,12 @@ export function usePlanner() {
         ? (parsed.subtaskDone as Record<string, boolean>)
         : {},
     );
+    setSkips(
+      parsed.skips && typeof parsed.skips === "object"
+        ? (parsed.skips as Record<string, SkipRecord>)
+        : {},
+    );
+    setTags(Array.isArray(parsed.tags) ? (parsed.tags as Tag[]) : []);
   }, []);
 
   return {
@@ -474,6 +531,11 @@ export function usePlanner() {
     completions,
     overrides,
     subtaskDone,
+    skips,
+    tags,
+    addTag,
+    updateTag,
+    deleteTag,
     addTask,
     updateTask,
     deleteTask,
@@ -482,6 +544,7 @@ export function usePlanner() {
     stopTracking,
     updateSettings,
     toggleDone,
+    toggleSkip,
     setDayDescription,
     addSubtask,
     removeSubtask,

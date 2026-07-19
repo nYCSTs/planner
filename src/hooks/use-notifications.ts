@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { AlarmLimits } from "@/lib/sound";
 import type { ResolvedOccurrence, Settings } from "@/types";
 import { nowMinutes } from "@/lib/time";
 import { startAlarm, stopAlarm, isAlarmActive } from "@/lib/sound";
@@ -13,15 +14,15 @@ function getPermission(): Permission {
   return Notification.permission as Permission;
 }
 
-/** Fire browser notification (persistent until dismissed) and optionally start
- *  the repeating alarm sound. */
-function notify(title: string, body: string, sound: boolean) {
-  if (sound) startAlarm();
+/** Fire browser notification (auto-closes after 5 s) and optionally start
+ *  the repeating alarm sound with the configured stop limits. */
+function notify(title: string, body: string, sound: boolean, alarm: AlarmLimits) {
+  if (sound) startAlarm(alarm);
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   try {
-    // requireInteraction keeps the notification visible until the user acts.
-    new Notification(title, { body, tag: title + body, requireInteraction: true });
+    const n = new Notification(title, { body, tag: title + body });
+    setTimeout(() => n.close(), 5000);
   } catch {
     // ignore
   }
@@ -76,6 +77,10 @@ export function useNotifications(
     if (!settings.notificationsEnabled) return;
     const minute = nowMinutes(now);
     const fired = firedRef.current;
+    const alarm: AlarmLimits = {
+      maxSeconds: settings.alarmMaxSeconds,
+      maxBeeps: settings.alarmMaxBeeps,
+    };
 
     for (const occ of occurrences) {
       if (occ.completed) continue;
@@ -100,6 +105,7 @@ export function useNotifications(
           remaining <= 0 ? "Começando agora" : `Começa em ${remaining} min`,
           occ.task.title,
           sound,
+          alarm,
         );
       }
 
@@ -118,11 +124,12 @@ export function useNotifications(
             remaining <= 0 ? "Terminando agora" : `Termina em ${remaining} min`,
             occ.task.title,
             sound,
+            alarm,
           );
         }
       }
     }
-  }, [occurrences, now, settings]);
+  }, [occurrences, now, settings, trackingTaskId]);
 
   return { permission, requestPermission, alarmActive, dismissAlarm };
 }

@@ -1,5 +1,5 @@
 import type { Task } from "@/types";
-import { intervalsOverlap, isHourly, recurrenceWeekdays } from "./time";
+import { dateKey, intervalsOverlap, isHourly, recurrenceWeekdays } from "./time";
 
 /**
  * Two tasks can share at least one active day if their recurrence patterns
@@ -39,12 +39,17 @@ export function findConflicts(
   const candidateStart = candidate.startMinute;
   if (candidateStart === null) return [];
 
+  const todayKey = dateKey(new Date());
+
   return existing.filter((task) => {
     if (task.id === ignoreId) return false;
     const taskStart = task.startMinute;
     if (taskStart === null) return false;
     if (isHourly(task.recurrence)) return false;
     if (isHourly(candidate.recurrence)) return false;
+    // A "once" task with a past date will never occur again — it can't conflict.
+    if (task.recurrence.kind === "once" && task.date && task.date < todayKey) return false;
+    if (candidate.recurrence.kind === "once" && candidate.date && candidate.date < todayKey) return false;
     if (!sharesActiveDay(task, candidate as Task)) return false;
     return intervalsOverlap(
       candidateStart,

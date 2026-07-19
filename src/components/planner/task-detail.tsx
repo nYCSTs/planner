@@ -1,15 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { GitFork, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Ban, Check, ExternalLink, GitFork, GripVertical, Link as LinkIcon, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
-import { cn } from "@/lib/utils";
+import { cn, normalizeUrl, prettyUrl } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { dateKey, minutesToTime, isHourly } from "@/lib/time";
-import type { DayOverride, ResolvedOccurrence, Subtask } from "@/types";
+import { PriorityBadge, TagChip } from "./task-badges";
+import type { DayOverride, ResolvedOccurrence, Subtask, Tag } from "@/types";
 
 const RECURRENCE_LABEL: Record<string, string> = {
   once: "Pontual",
@@ -25,8 +26,15 @@ interface TaskDetailProps {
   override: DayOverride | undefined;
   subtaskDone: Record<string, boolean>;
   completions: Record<string, number>;
+  /** All tags, for resolving this task's tag chips. */
+  allTags: Tag[];
   onEdit: () => void;
   onFork: () => void;
+  /** Toggle this occurrence's completion (hidden for tracker logs). */
+  onToggleDone: () => void;
+  /** Delete the whole task. */
+  onDelete: () => void;
+  onToggleSkip: (reason?: string) => void;
   onSetDayDescription: (description: string) => void;
   onAddSubtask: (title: string, scope: "global" | "day") => void;
   onRemoveSubtask: (subtaskId: string, scope: "global" | "day") => void;
@@ -288,8 +296,12 @@ export function TaskDetail({
   override,
   subtaskDone,
   completions,
+  allTags,
   onEdit,
   onFork,
+  onToggleDone,
+  onDelete,
+  onToggleSkip,
   onSetDayDescription,
   onAddSubtask,
   onRemoveSubtask,
@@ -302,30 +314,140 @@ export function TaskDetail({
   const dk = dateKey(day);
   const [editingDayNote, setEditingDayNote] = useState(false);
   const [dayNote, setDayNote] = useState(override?.description ?? "");
+  const [skipReasonOpen, setSkipReasonOpen] = useState(false);
+  const [skipReasonText, setSkipReasonText] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const globalSubs = task.subtasks ?? [];
   const daySubs = override?.subtasks ?? [];
   const globalDesc = task.description?.trim();
   const dayDesc = override?.description?.trim();
+  const taskTags = (task.tags ?? [])
+    .map((id) => allTags.find((t) => t.id === id))
+    .filter(Boolean) as Tag[];
+  const taskLink = task.link ? normalizeUrl(task.link) : null;
 
   const isDone = (subId: string) => Boolean(subtaskDone[`${subId}:${dk}`]);
 
-  // For unscheduled tasks, completions[task.id] holds the unix timestamp of completion.
+  // For unscheduled tasks the completion value is the unix timestamp of when it
+  // was marked done. The occurrence key handles both flavours (global for
+  // "once", per-day for recurring).
   const unscheduledCompletedAt = !occ.scheduled && occ.completed
-    ? completions[task.id]
+    ? completions[occ.key]
     : undefined;
+
+  const isTracked = Boolean(task.tracked);
 
   return (
     <div className="space-y-4">
-      {/* Top bar: actions (left) + close handled by the dialog's X (right) */}
-      <div className="flex items-center gap-2">
+      {/* Primary action: complete / reopen (not for tracker logs). */}
+      {!isTracked && (
+        <div className="pr-8">
+          {occ.completed ? (
+            <Button
+              variant="outline"
+              className="w-full justify-center gap-1.5 border-green-500/40 bg-green-500/10 text-green-700 hover:bg-green-500/20 dark:text-green-400"
+              onClick={onToggleDone}
+            >
+              <RotateCcw className="h-4 w-4" /> Concluída — reabrir
+            </Button>
+          ) : (
+            <Button
+              className="w-full justify-center gap-1.5 bg-green-600 text-white hover:bg-green-700"
+              onClick={onToggleDone}
+            >
+              <Check className="h-4 w-4" strokeWidth={2.5} /> Marcar como concluída
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Secondary actions */}
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button size="sm" variant="outline" onClick={onEdit}>
           <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
         </Button>
         <Button size="sm" variant="ghost" onClick={onFork}>
-          <GitFork className="mr-1 h-3.5 w-3.5" /> Duplicar p/ outro horário
+          <GitFork className="mr-1 h-3.5 w-3.5" /> Duplicar
+        </Button>
+        {!occ.completed && !isTracked && (
+          occ.skipped ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => onToggleSkip()}
+            >
+              <Ban className="mr-1 h-3.5 w-3.5" /> Desfazer pulada
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-amber-600 hover:text-amber-700 dark:text-amber-500"
+              onClick={() => { setSkipReasonText(""); setSkipReasonOpen((o) => !o); }}
+            >
+              <Ban className="mr-1 h-3.5 w-3.5" /> Pular
+            </Button>
+          )
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ml-auto text-destructive hover:text-destructive"
+          onClick={() => setConfirmDelete(true)}
+        >
+          <Trash2 className="mr-1 h-3.5 w-3.5" /> Excluir
         </Button>
       </div>
+
+      {/* Inline delete confirmation */}
+      {confirmDelete && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2">
+          <span className="text-xs font-medium text-destructive">
+            Excluir esta tarefa{recurring ? " e todas as suas repetições" : ""}?
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" className="h-7" onClick={() => setConfirmDelete(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 bg-destructive text-white hover:bg-destructive/90"
+              onClick={onDelete}
+            >
+              Excluir
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Inline skip-reason form */}
+      {skipReasonOpen && !occ.skipped && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-400/50 bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
+          <Input
+            autoFocus
+            value={skipReasonText}
+            placeholder="Motivo (opcional)"
+            className="h-8 flex-1 text-sm"
+            onChange={(e) => setSkipReasonText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { onToggleSkip(skipReasonText); setSkipReasonOpen(false); }
+              if (e.key === "Escape") setSkipReasonOpen(false);
+            }}
+          />
+          <Button
+            size="sm"
+            className="h-8 bg-amber-600 text-white hover:bg-amber-700"
+            onClick={() => { onToggleSkip(skipReasonText); setSkipReasonOpen(false); }}
+          >
+            Confirmar
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSkipReasonOpen(false)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="flex items-start gap-2 pr-8">
         <span
@@ -333,10 +455,18 @@ export function TaskDetail({
           style={{ backgroundColor: task.color }}
         />
         <div className="min-w-0 flex-1">
-          <h2 className="break-words text-base font-semibold leading-tight">
-            {task.title}
-          </h2>
-          <p className="text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="break-words text-base font-semibold leading-tight">
+              {task.title}
+            </h2>
+            {task.priority && <PriorityBadge priority={task.priority} />}
+            {occ.skipped && (
+              <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                Pulada
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {occ.scheduled
               ? `${minutesToTime(occ.startMinute)}${
                   occ.openEnded ? " · em aberto" : ` – ${minutesToTime(occ.endMinute)}`
@@ -346,8 +476,41 @@ export function TaskDetail({
               : "Sem horário · "}
             {recurrenceSummary(occ)}
           </p>
+          {taskTags.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {taskTags.map((t) => (
+                <TagChip key={t.id} tag={t} />
+              ))}
+            </div>
+          )}
+          {occ.skipped && occ.skipReason && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              Motivo: {occ.skipReason}
+            </p>
+          )}
         </div>
       </div>
+
+      {/* Link — one tap opens it in a new tab. */}
+      {taskLink && (
+        <a
+          href={taskLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 transition-colors hover:border-primary/40 hover:bg-accent"
+        >
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+            <LinkIcon className="h-3.5 w-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-medium">Abrir link</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {prettyUrl(taskLink)}
+            </span>
+          </span>
+          <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+        </a>
+      )}
 
       {/* Descriptions */}
       <div className="space-y-3">

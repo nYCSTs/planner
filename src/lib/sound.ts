@@ -35,12 +35,42 @@ export function beep(times = 3) {
 }
 
 let _alarmInterval: ReturnType<typeof setInterval> | null = null;
+let _alarmTimeout: ReturnType<typeof setTimeout> | null = null;
 
-/** Start a repeating alarm (beep every 4 s) until `stopAlarm()` is called. */
-export function startAlarm() {
+const ALARM_BEEP_GAP_MS = 4000; // gap between alarm bursts
+
+export interface AlarmLimits {
+  /** Auto-stop after this many seconds (0 = no time limit). */
+  maxSeconds?: number;
+  /** Auto-stop after this many bursts (0 = no count limit). */
+  maxBeeps?: number;
+}
+
+/**
+ * Start a repeating alarm (a burst every ~4 s). It stops automatically when
+ * either the time limit or the beep-count limit is reached (whichever first);
+ * `0`/omitted on a limit disables that limit. When both are disabled the alarm
+ * rings until dismissed manually. As a safety net (e.g. a stuck tab) a hard cap
+ * of 30 minutes always applies.
+ */
+export function startAlarm(limits: AlarmLimits = {}) {
   if (_alarmInterval !== null) return; // already running
+  const maxSeconds = Math.max(0, limits.maxSeconds ?? 0);
+  const maxBeeps = Math.max(0, Math.floor(limits.maxBeeps ?? 0));
+  const HARD_CAP_MS = 30 * 60 * 1000;
+
+  let count = 1;
   beep(3);
-  _alarmInterval = setInterval(() => beep(3), 4000);
+  if (maxBeeps === 1) return; // single burst requested — nothing repeats
+
+  _alarmInterval = setInterval(() => {
+    count += 1;
+    beep(3);
+    if (maxBeeps > 0 && count >= maxBeeps) stopAlarm();
+  }, ALARM_BEEP_GAP_MS);
+
+  const timeCap = maxSeconds > 0 ? maxSeconds * 1000 : HARD_CAP_MS;
+  _alarmTimeout = setTimeout(() => stopAlarm(), Math.min(timeCap, HARD_CAP_MS));
 }
 
 /** Stop the repeating alarm started by `startAlarm()`. */
@@ -48,6 +78,10 @@ export function stopAlarm() {
   if (_alarmInterval !== null) {
     clearInterval(_alarmInterval);
     _alarmInterval = null;
+  }
+  if (_alarmTimeout !== null) {
+    clearTimeout(_alarmTimeout);
+    _alarmTimeout = null;
   }
 }
 

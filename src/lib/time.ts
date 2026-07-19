@@ -1,9 +1,11 @@
 import { format, parse } from "date-fns";
 import type {
   DayOverride,
+  SleepSchedule,
   Task,
   Recurrence,
   ResolvedOccurrence,
+  SkipRecord,
   Weekday,
 } from "@/types";
 
@@ -65,12 +67,22 @@ function recurrenceMatchesWeekday(rec: Recurrence, weekday: Weekday): boolean {
 
 /** Does this task have an occurrence on the given day? */
 function taskOccursOn(task: Task, day: Date): boolean {
-  // Unscheduled tasks appear on every day regardless of their creation date.
-  if (task.startMinute === null) return true;
   const key = dateKey(day);
+
+  // Unscheduled "once" tasks are a persistent backlog: they show on every day
+  // until completed, regardless of when they were created.
+  if (task.startMinute === null && task.recurrence.kind === "once") return true;
+
   if (task.recurrence.kind === "once") {
     return task.date === key;
   }
+  // Recurring tasks (scheduled or not) follow their weekday pattern within the
+  // recurrence window: explicit startDate when set, otherwise the creation day
+  // (so a recurring task can be scheduled to *begin* on a future date).
+  const floor = task.recurrence.startDate ?? dateKey(new Date(task.createdAt));
+  if (key < floor) return false;
+  // Optional inclusive end of the recurrence window.
+  if (task.recurrence.endDate && key > task.recurrence.endDate) return false;
   return recurrenceMatchesWeekday(task.recurrence, day.getDay() as Weekday);
 }
 
@@ -79,8 +91,8 @@ function taskOccursOn(task: Task, day: Date): boolean {
  * Hourly tasks expand into one occurrence per hour. Open-ended tasks get an
  * effective end (manual completion minute, or end-of-day for layout).
  *
- * When `now` is passed and falls on `day`, tasks flagged `hideElapsed` drop
- * occurrences whose end has already passed (only applies to the current day).
+ * When `now` is passed and falls on `day`, occurrences whose end has already
+ * passed are hidden (only applies to the current day; hourly tasks are exempt).
  */
 export function resolveOccurrences(
   tasks: Task[],
@@ -88,6 +100,7 @@ export function resolveOccurrences(
   completions: Record<string, number>, // key `${taskId}:${dateKey}` -> completedAtMinute
   now?: Date,
   overrides: Record<string, DayOverride> = {}, // key `${taskId}:${dateKey}`
+  skips: Record<string, SkipRecord> = {}, // key = occurrence key
 ): ResolvedOccurrence[] {
   const key = dateKey(day);
   const isCurrentDay = now !== undefined && dateKey(now) === key;
@@ -105,10 +118,15 @@ export function resolveOccurrences(
       (task.subtasks?.length ?? 0) > 0 || (override?.subtasks?.length ?? 0) > 0,
     );
 
-    // Unscheduled task: appears on every day with a global completion key
-    // (no date suffix) so marking done on any day persists everywhere.
+    // Unscheduled task. Two flavours:
+    //  - "once" (backlog): a global completion key (no date) so marking it done
+    //    on any day persists everywhere — it's a single thing to do someday.
+    //  - recurring (a habit/chore with no time): a per-day key so each day is
+    //    tracked independently (done today ≠ done tomorrow).
     if (task.startMinute === null) {
-      const completionKey = task.id;
+      const recurringUnscheduled = task.recurrence.kind !== "once";
+      const completionKey = recurringUnscheduled ? `${task.id}:${key}` : task.id;
+      const skipRec = skips[completionKey];
       result.push({
         task,
         key: completionKey,
@@ -118,6 +136,8 @@ export function resolveOccurrences(
         openEnded: false,
         scheduled: false,
         completed: completions[completionKey] !== undefined,
+        skipped: skipRec !== undefined,
+        skipReason: skipRec?.reason,
         hasDescription,
         hasSubtasks,
       });
@@ -143,6 +163,7 @@ export function resolveOccurrences(
         const occKey = `${task.id}:${key}:${hour}`;
         const doneAt = completions[occKey];
         const done = doneAt !== undefined;
+        const skipRec = skips[occKey];
         const slotEnd = slotDuration !== null
           ? Math.min(start + slotDuration, MINUTES_IN_DAY)
           : Math.min((hour + interval) * 60 + offset, MINUTES_IN_DAY);
@@ -155,6 +176,8 @@ export function resolveOccurrences(
           openEnded: false,
           scheduled: true,
           completed: done,
+          skipped: skipRec !== undefined,
+          skipReason: skipRec?.reason,
           hasDescription,
           hasSubtasks,
         });
@@ -165,6 +188,7 @@ export function resolveOccurrences(
     const completionKey = `${task.id}:${key}`;
     const completedAt = completions[completionKey];
     const isCompleted = completedAt !== undefined;
+    const skipRec = skips[completionKey];
 
     const openEnded = task.endMinute === null;
     let endMinute: number;
@@ -176,34 +200,30 @@ export function resolveOccurrences(
 
     result.push({
       task,
-      key: `${task.id}:${key}`,
+      key: completionKey,
       date: key,
       startMinute: task.startMinute,
       endMinute,
       openEnded,
       scheduled: true,
       completed: isCompleted,
+      skipped: skipRec !== undefined,
+      skipReason: skipRec?.reason,
       hasDescription,
       hasSubtasks,
     });
   }
 
-  // Hide occurrences that ended before the relevant cutoff minute (opt-in).
-  // Hourly tasks are exempt — each slot is independent and should stay visible.
-  // Cutoff logic:
-  //   - On the task's creation day: use the task's creation minute, so slots
-  //     that had already ended when the task was created don't appear.
-  //   - On any other current day: use the current minute (hide elapsed slots).
+  // On the task's creation day, hide slots that had already ended when the
+  // task was created (so you don't see "stale" past slots on first setup).
+  // Hourly tasks are exempt. On all other days nothing is hidden.
   const visible = isCurrentDay
     ? result.filter((o) => {
-        if (!o.scheduled || !o.task.hideElapsed || isHourly(o.task.recurrence))
-          return true;
+        if (!o.scheduled || isHourly(o.task.recurrence)) return true;
         const createdDate = new Date(o.task.createdAt);
-        const isCreationDay = dateKey(createdDate) === key;
-        const cutoff = isCreationDay
-          ? createdDate.getHours() * 60 + createdDate.getMinutes()
-          : currentMinute;
-        return o.endMinute > cutoff;
+        if (dateKey(createdDate) !== key) return true; // not creation day → always show
+        const creationCutoff = createdDate.getHours() * 60 + createdDate.getMinutes();
+        return o.endMinute > creationCutoff;
       })
     : result;
 
@@ -233,4 +253,58 @@ export function recurrenceWeekdays(rec: Recurrence): Weekday[] {
   if (rec.kind === "custom") return rec.weekdays ?? [];
   if (rec.kind === "once") return [];
   return RECURRENCE_DAYS[rec.kind] ?? [];
+}
+
+/** The bedtime/wake pair that *starts* on the given weekday. */
+export function sleepForWeekday(
+  sleep: SleepSchedule,
+  weekday: Weekday,
+): { bedtime: number; wakeTime: number } {
+  return (
+    sleep.perDay?.[weekday] ?? { bedtime: sleep.bedtime, wakeTime: sleep.wakeTime }
+  );
+}
+
+/** A sleep band segment to draw on the timeline for a given day (minutes). */
+export interface SleepSegment {
+  startMinute: number;
+  endMinute: number;
+  /** "evening" = tonight's sleep starting; "morning" = last night's tail. */
+  part: "evening" | "morning";
+}
+
+/**
+ * Compute the sleep band segment(s) visible on `day`. Sleep crosses midnight,
+ * so a day shows the morning tail of the previous night's sleep (00:00 → wake)
+ * and the start of tonight's sleep (bedtime → 24:00). When bedtime < wakeTime
+ * (a daytime nap-style window that doesn't cross midnight) a single segment is
+ * returned instead.
+ */
+export function sleepSegments(sleep: SleepSchedule, day: Date): SleepSegment[] {
+  if (!sleep.enabled) return [];
+  const weekday = day.getDay() as Weekday;
+  const today = sleepForWeekday(sleep, weekday);
+  const segments: SleepSegment[] = [];
+
+  // Tonight's sleep starts at bedtime.
+  if (today.bedtime < today.wakeTime) {
+    // Window doesn't cross midnight — a single same-day band.
+    segments.push({ startMinute: today.bedtime, endMinute: today.wakeTime, part: "evening" });
+    return segments;
+  }
+
+  // Evening: bedtime → end of day.
+  if (today.bedtime < MINUTES_IN_DAY) {
+    segments.push({ startMinute: today.bedtime, endMinute: MINUTES_IN_DAY, part: "evening" });
+  }
+
+  // Morning: 00:00 → wake, using the *previous* day's window (that's the night
+  // that is ending this morning).
+  const prevWeekday = ((weekday + 6) % 7) as Weekday;
+  const prev = sleepForWeekday(sleep, prevWeekday);
+  if (prev.bedtime >= prev.wakeTime && prev.wakeTime > 0) {
+    segments.push({ startMinute: 0, endMinute: prev.wakeTime, part: "morning" });
+  }
+
+  return segments;
 }

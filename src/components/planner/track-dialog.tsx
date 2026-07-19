@@ -12,8 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { TASK_COLORS, randomColor } from "@/lib/colors";
-import { minutesToTime, nowMinutes } from "@/lib/time";
+import { randomColor } from "@/lib/colors";
+import { ColorPicker } from "./task-form-controls";
+import { minutesToTime } from "@/lib/time";
 import type { Task } from "@/types";
 
 interface TrackDialogProps {
@@ -139,26 +140,12 @@ export function TrackDialog({
           </div>
 
           {/* Color */}
-          <div className="space-y-1.5">
-            <Label>Cor</Label>
-            <div className="flex flex-wrap gap-2">
-              {TASK_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  disabled={running}
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    "h-6 w-6 rounded-full ring-offset-2 ring-offset-background transition",
-                    color === c && "ring-2 ring-ring",
-                    running && "opacity-50",
-                  )}
-                  style={{ backgroundColor: c }}
-                  aria-label={`Cor ${c}`}
-                />
-              ))}
+          {!running && (
+            <div className="space-y-1.5">
+              <Label>Cor</Label>
+              <ColorPicker value={color} onChange={setColor} />
             </div>
-          </div>
+          )}
 
           {/* Fork from existing */}
           {!running && (

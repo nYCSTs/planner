@@ -15,6 +15,19 @@ export interface Recurrence {
   /** For "custom": the weekdays the task repeats on. */
   weekdays?: Weekday[];
   /**
+   * ISO date (yyyy-MM-dd) the recurrence starts on. When set, occurrences
+   * before this date are suppressed — this lets a recurring task begin on a
+   * *future* day rather than always from its creation day. When omitted the
+   * task falls back to starting on its creation day (legacy behaviour).
+   */
+  startDate?: string;
+  /**
+   * ISO date (yyyy-MM-dd) the recurrence ends on (inclusive). When set,
+   * occurrences after this date are suppressed. When omitted the task repeats
+   * indefinitely.
+   */
+  endDate?: string;
+  /**
    * When true, the task repeats on an hourly cadence from its start time on
    * each day the `kind` is active (e.g. everyHour + everyday = on all days).
    * Not valid together with `kind: "once"`.
@@ -39,6 +52,16 @@ export interface Subtask {
   title: string;
 }
 
+export type Priority = "high" | "medium" | "low";
+
+/** A user-defined label used to categorize tasks (Todoist-style). */
+export interface Tag {
+  id: string;
+  label: string;
+  /** Accent color (hex) for the tag chip. */
+  color: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -48,6 +71,15 @@ export interface Task {
   subtasks?: Subtask[];
   /** Hex/tailwind-friendly accent color used on the timeline block. */
   color: string;
+
+  /** Priority level. Applies to both scheduled and unscheduled tasks. */
+  priority?: Priority;
+
+  /** Ids of the tags assigned to this task (see `Tag`). */
+  tags?: string[];
+
+  /** A single related URL, openable in a new tab from the task's detail. */
+  link?: string;
 
   /**
    * Minutes from midnight, 0–1439. When null the task has no scheduled time —
@@ -77,12 +109,6 @@ export interface Task {
   /** True when created via the live tracker (Toggl-style). Hides the done toggle. */
   tracked?: boolean;
 
-  /**
-   * When true, occurrences whose end time has already elapsed are hidden — but
-   * only on the current day. Past days still show every occurrence (history).
-   */
-  hideElapsed?: boolean;
-
   createdAt: string;
 }
 
@@ -94,6 +120,15 @@ export interface Completion {
   taskId: string;
   date: string; // yyyy-MM-dd
   completedAtMinute: number;
+}
+
+/**
+ * Skip record for an occurrence the user marked as "não feita / pulada".
+ * Keyed in the skips store by `${occurrenceKey}` (same granularity as
+ * completions). `reason` is an optional free-text explanation.
+ */
+export interface SkipRecord {
+  reason?: string;
 }
 
 /**
@@ -109,6 +144,25 @@ export interface DayOverride {
   subtasks?: Subtask[];
 }
 
+/**
+ * The daily sleep window. Unlike tasks, sleep is a recurring *ambient* period
+ * rendered as a distinct band on the timeline (never completable/skippable). It
+ * crosses midnight, so on any given day it shows as up to two segments: the
+ * morning tail (00:00 → wake) and the evening start (bedtime → 24:00).
+ */
+export interface SleepSchedule {
+  enabled: boolean;
+  /** Default bedtime (minutes from midnight). */
+  bedtime: number;
+  /** Default wake time (minutes from midnight). */
+  wakeTime: number;
+  /**
+   * Per-weekday overrides. A weekday's entry gives the bedtime that *starts*
+   * on that day (the wake time then falls on the following morning).
+   */
+  perDay?: Partial<Record<Weekday, { bedtime: number; wakeTime: number }>>;
+}
+
 export interface Settings {
   theme: "light" | "dark" | "system";
   /** Default minutes-before-start notification lead time. */
@@ -117,9 +171,21 @@ export interface Settings {
   notifyBeforeEnd: number;
   notificationsEnabled: boolean;
   soundEnabled: boolean;
+  /**
+   * Auto-stop the ringing alarm after this many seconds. 0 means no time
+   * limit (rings until manually dismissed or the beep-count limit is hit).
+   */
+  alarmMaxSeconds: number;
+  /**
+   * Auto-stop the ringing alarm after this many beep bursts. 0 means no count
+   * limit. The alarm stops at whichever limit (time or count) is reached first.
+   */
+  alarmMaxBeeps: number;
   /** Pomodoro durations in minutes. */
   pomodoroWork: number;
   pomodoroBreak: number;
+  /** Optional daily sleep window shown as a distinct band on the timeline. */
+  sleep: SleepSchedule;
 }
 
 /** A task resolved to a concrete interval on a specific day. */
@@ -140,6 +206,10 @@ export interface ResolvedOccurrence {
   /** False for tasks without a start time (listed under "Sem horário"). */
   scheduled: boolean;
   completed: boolean;
+  /** True when the occurrence was marked as skipped/not-done by the user. */
+  skipped: boolean;
+  /** Skip reason text, when skipped. */
+  skipReason?: string;
   /** True when there's any description (global or this day's override). */
   hasDescription: boolean;
   /** True when there's any subtask (global or this day's override). */
@@ -152,6 +222,13 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyBeforeEnd: 5,
   notificationsEnabled: true,
   soundEnabled: true,
+  alarmMaxSeconds: 180, // 3 minutes, matching the previous hard-coded limit
+  alarmMaxBeeps: 0, // no count limit by default
   pomodoroWork: 25,
   pomodoroBreak: 5,
+  sleep: {
+    enabled: false,
+    bedtime: 23 * 60, // 23:00
+    wakeTime: 7 * 60, // 07:00
+  },
 };
