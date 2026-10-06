@@ -15,13 +15,12 @@ import {
   Timer,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { addDaysKey, dateKey, dayFromKey, minutesToTime } from "@/lib/time";
-import { describeRecurrence, patternMatches } from "@/lib/recurrence";
-import { afterDoneDue, backlogKey, dayOccKey, historyIndex, isBacklog } from "@/lib/occurrences";
+import { dateKey, dayFromKey, minutesToTime } from "@/lib/time";
+import { describeRecurrence } from "@/lib/recurrence";
+import { backlogKey, dayOccKey, isBacklog, nextOccurrenceDate } from "@/lib/occurrences";
 import { getState } from "@/lib/store/store";
 import { useTasks } from "@/lib/store/hooks";
 import { cn } from "@/lib/utils";
-import type { Task } from "@/types";
 import { useUI } from "./ui-context";
 
 interface Item {
@@ -31,31 +30,6 @@ interface Item {
   icon?: React.ReactNode;
   color?: string;
   run: () => void;
-}
-
-/** Nearest day (today or later, else the last past one) the task occurs on. */
-function nextDate(task: Task, todayKey: string): string {
-  if (isBacklog(task)) {
-    return todayKey;
-  }
-
-  if (task.recurrence.kind === "once") {
-    return task.date ?? todayKey;
-  }
-
-  if (task.recurrence.kind === "afterDone") {
-    const due = afterDoneDue(task, historyIndex(getState().occurrences));
-    return due < todayKey ? todayKey : due;
-  }
-
-  for (let i = 0; i < 400; i++) {
-    const key = addDaysKey(todayKey, i);
-    if (patternMatches(task, key)) {
-      return key;
-    }
-  }
-
-  return task.recurrence.endDate ?? todayKey;
 }
 
 export function CommandPalette() {
@@ -98,7 +72,7 @@ export function CommandPalette() {
           .filter((t) => t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q))
           .slice(0, 30)
           .map((t) => {
-            const date = nextDate(t, todayKey);
+            const date = nextOccurrenceDate(t, todayKey, getState().occurrences);
             const hint =
               t.recurrence.kind === "once"
                 ? `${date.split("-").reverse().slice(0, 2).join("/")}${t.startMinute !== null ? ` · ${minutesToTime(t.startMinute)}` : ""}`

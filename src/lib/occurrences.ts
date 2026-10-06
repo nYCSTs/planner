@@ -355,3 +355,28 @@ export function overdueBacklog(
     return !live(occurrences[backlogKey(t.id)])?.status;
   });
 }
+
+/** Nearest day (today or later, else the last one) the task occurs on. */
+export function nextOccurrenceDate(task: Task, todayKey: string, occurrences: Record<string, OccurrenceState>): string {
+  if (isBacklog(task)) {
+    return todayKey;
+  }
+
+  if (task.recurrence.kind === "once") {
+    return task.date ?? todayKey;
+  }
+
+  if (task.recurrence.kind === "afterDone") {
+    const due = afterDoneDue(task, historyIndex(occurrences));
+    return due < todayKey ? todayKey : due;
+  }
+
+  for (let i = 0; i < 400; i++) {
+    const key = addDaysKey(todayKey, i);
+    if (patternMatches(task, key)) {
+      return key;
+    }
+  }
+
+  return task.recurrence.endDate ?? todayKey;
+}

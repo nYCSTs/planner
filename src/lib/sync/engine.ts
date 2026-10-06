@@ -242,6 +242,11 @@ export async function startEngine() {
   }, 30_000);
 
   if (session) {
+    if ("recoveryCode" in session) {
+      delete (session as Partial<Session> & { recoveryCode?: string }).recoveryCode;
+      await saveSession(session);
+    }
+
     void syncNow();
   }
 }
@@ -257,7 +262,14 @@ async function adopt(
     markAllDirty();
   }
 
-  await saveSession({ ...res, deviceName, cursor: 0, pairedAt: Date.now() });
+  await saveSession({
+    vaultId: res.vaultId,
+    deviceId: res.deviceId,
+    token: res.token,
+    deviceName,
+    cursor: 0,
+    pairedAt: Date.now(),
+  });
   ensureTimeZone();
   await syncNow();
 }

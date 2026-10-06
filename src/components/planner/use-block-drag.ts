@@ -10,7 +10,10 @@ interface Options {
   end: number;
   pxPerMinute: number;
   snap?: number;
-  onCommit: (start: number, end: number) => void;
+  /** Column under a clientX, for moving across days (week view). */
+  column?: number;
+  columnAt?: (clientX: number) => number;
+  onCommit: (start: number, end: number, column?: number) => void;
 }
 
 const MOVE_THRESHOLD = 4;
@@ -24,8 +27,8 @@ function preventScroll(e: TouchEvent) {
  * Vertical move/resize for timeline blocks. Mouse drags start after a few
  * pixels; touch drags need a long press so normal scrolling keeps working.
  */
-export function useBlockDrag({ start, end, pxPerMinute, snap = 5, onCommit }: Options) {
-  const [preview, setPreview] = useState<{ start: number; end: number } | null>(null);
+export function useBlockDrag({ start, end, pxPerMinute, snap = 5, column, columnAt, onCommit }: Options) {
+  const [preview, setPreview] = useState<{ start: number; end: number; column?: number } | null>(null);
   const [active, setActive] = useState<Edge | null>(null);
   const suppressClick = useRef(false);
 
@@ -37,9 +40,10 @@ export function useBlockDrag({ start, end, pxPerMinute, snap = 5, onCommit }: Op
     e.stopPropagation();
     const touch = e.pointerType === "touch";
     const originY = e.clientY;
+    const originX = e.clientX;
     let started = !touch && edge !== "move";
     let armed = !touch;
-    let cur = { start, end };
+    let cur: { start: number; end: number; column?: number } = { start, end, column };
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     if (started) {
@@ -65,9 +69,10 @@ export function useBlockDrag({ start, end, pxPerMinute, snap = 5, onCommit }: Op
 
     const onMove = (ev: PointerEvent) => {
       const dy = ev.clientY - originY;
+      const moved = Math.max(Math.abs(dy), Math.abs(ev.clientX - originX));
       if (!started) {
         if (!armed) {
-          if (Math.abs(dy) > 8 && timer) {
+          if (moved > 8 && timer) {
             clearTimeout(timer);
             timer = null;
             cleanup();
@@ -76,7 +81,7 @@ export function useBlockDrag({ start, end, pxPerMinute, snap = 5, onCommit }: Op
           return;
         }
 
-        if (Math.abs(dy) < MOVE_THRESHOLD) {
+        if (moved < MOVE_THRESHOLD) {
           return;
         }
 
@@ -86,11 +91,11 @@ export function useBlockDrag({ start, end, pxPerMinute, snap = 5, onCommit }: Op
       const delta = Math.round(dy / pxPerMinute / snap) * snap;
       if (edge === "move") {
         const d = Math.max(-start, Math.min(MINUTES_IN_DAY - end, delta));
-        cur = { start: start + d, end: end + d };
+        cur = { start: start + d, end: end + d, column: columnAt ? columnAt(ev.clientX) : column };
       } else if (edge === "top") {
-        cur = { start: Math.max(0, Math.min(end - snap, start + delta)), end };
+        cur = { start: Math.max(0, Math.min(end - snap, start + delta)), end, column };
       } else {
-        cur = { start, end: Math.max(start + snap, Math.min(MINUTES_IN_DAY, end + delta)) };
+        cur = { start, end: Math.max(start + snap, Math.min(MINUTES_IN_DAY, end + delta)), column };
       }
 
       setPreview(cur);
@@ -109,9 +114,9 @@ export function useBlockDrag({ start, end, pxPerMinute, snap = 5, onCommit }: Op
       }
 
       cleanup();
-      if (started && (cur.start !== start || cur.end !== end)) {
+      if (started && (cur.start !== start || cur.end !== end || cur.column !== column)) {
         suppressClick.current = true;
-        onCommit(cur.start, cur.end);
+        onCommit(cur.start, cur.end, cur.column);
       } else if (started && touch) {
         suppressClick.current = true;
       }
@@ -138,6 +143,7 @@ export function useBlockDrag({ start, end, pxPerMinute, snap = 5, onCommit }: Op
   return {
     start: preview?.start ?? start,
     end: preview?.end ?? end,
+    column: preview?.column ?? column,
     dragging: active !== null,
     moving: active === "move",
     begin,

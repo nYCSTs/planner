@@ -47,7 +47,7 @@ interface TaskListProps {
 
 type Tab = "scheduled" | "unscheduled";
 
-function liveProject(id: string | undefined, byId: Record<string, Project>): Project | undefined {
+export function liveProject(id: string | undefined, byId: Record<string, Project>): Project | undefined {
   const p = id ? byId[id] : undefined;
   return p && !p.deletedAt ? p : undefined;
 }
@@ -131,13 +131,14 @@ function DaySummary({ all, entries }: { all: ResolvedOccurrence[]; entries: DayE
   );
 }
 
-function Row({
+export function TaskRow({
   occ,
   tags,
   project,
   onToggleDone,
   onSelect,
   onStartTimer,
+  dragAll = false,
 }: {
   occ: ResolvedOccurrence;
   tags: Tag[];
@@ -145,6 +146,8 @@ function Row({
   onToggleDone: (occ: ResolvedOccurrence) => void;
   onSelect: (occ: ResolvedOccurrence) => void;
   onStartTimer: (occ: ResolvedOccurrence) => void;
+  /** Allow dragging any one-off task (moving between days). */
+  dragAll?: boolean;
 }) {
   const done = occ.completed;
   const skipped = occ.skipped;
@@ -153,7 +156,7 @@ function Row({
   const taskLink = occ.task.link ? normalizeUrl(occ.task.link) : null;
   const emphasize = !occ.scheduled && !done && !skipped;
   const accent = priority?.dotHex ?? occ.task.color;
-  const draggable = isBacklog(occ.task) && !done && !skipped;
+  const draggable = (dragAll ? occ.task.recurrence.kind === "once" : isBacklog(occ.task)) && !done && !skipped;
 
   return (
     <li>
@@ -281,7 +284,19 @@ function Row({
   );
 }
 
-function QuickAdd({ day, now, onAdded }: { day: Date; now: Date; onAdded?: (title: string) => void }) {
+export function QuickAdd({
+  day,
+  now,
+  onAdded,
+  noDate = false,
+  placeholder,
+}: {
+  day: Date;
+  now: Date;
+  onAdded?: (title: string) => void;
+  noDate?: boolean;
+  placeholder?: string;
+}) {
   const [value, setValue] = useState("");
   const dk = dateKey(day);
   const todayKey = dateKey(now);
@@ -301,7 +316,7 @@ function QuickAdd({ day, now, onAdded }: { day: Date; now: Date; onAdded?: (titl
       startMinute: null,
       endMinute: null,
       recurrence: { kind: "once" },
-      date: dk === todayKey ? undefined : dk,
+      date: noDate || dk === todayKey ? undefined : dk,
     });
     setValue("");
     onAdded?.(title);
@@ -312,7 +327,7 @@ function QuickAdd({ day, now, onAdded }: { day: Date; now: Date; onAdded?: (titl
       <Plus className="pointer-events-none absolute left-4.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={value}
-        placeholder={dk === todayKey ? "Adicionar tarefa…" : "Adicionar para este dia…"}
+        placeholder={placeholder ?? (dk === todayKey ? "Adicionar tarefa…" : "Adicionar para este dia…")}
         className="h-8 border-dashed pl-8 text-sm"
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
@@ -564,7 +579,7 @@ export function TaskList({
         ) : (
           <ul className="space-y-0.5">
             {rows.map((occ) => (
-              <Row
+              <TaskRow
                 key={occ.key}
                 occ={occ}
                 tags={tags}
