@@ -342,8 +342,6 @@ export function TaskDetail({ occ }: { occ: ResolvedOccurrence }) {
   const plannedMin = occ.scheduled && !occ.openEnded ? occ.endMinute - occ.startMinute : 0;
   const trackedMin = trackedMs / 60_000;
 
-  const subScopeLabel = occ.dayKey === task.id ? "" : "só hoje";
-
   const handleDelete = async () => {
     if (!recurring) {
       if (!confirmDelete) {
@@ -714,7 +712,7 @@ export function TaskDetail({ occ }: { occ: ResolvedOccurrence }) {
 
         {recurring && (
           <section>
-            <SectionLabel>Subtarefas — {subScopeLabel || "deste dia"}</SectionLabel>
+            <SectionLabel>Subtarefas — só deste dia</SectionLabel>
             <SubtaskBlock occ={occ} subs={daySubs} scope="day" doneSet={doneSet} />
           </section>
         )}
