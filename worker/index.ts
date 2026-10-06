@@ -27,6 +27,14 @@ async function newDevice(env: Env, vaultId: string, name: string) {
 async function createVault(req: Request, env: Env) {
   const body = await readJson<{ deviceName?: string }>(req);
   const name = str(body.deviceName ?? "Aparelho", "deviceName", 60);
+  const max = Number(env.MAX_VAULTS ?? 0);
+  if (max > 0) {
+    const row = await env.DB.prepare("SELECT count(*) AS n FROM vaults").first<{ n: number }>();
+    if ((row?.n ?? 0) >= max) {
+      throw new HttpError(403, "Este servidor já tem um cofre. Use \"Conectar a um aparelho\" com o QR de um aparelho sincronizado.");
+    }
+  }
+
   const vaultId = randomId();
   const recovery = randomCode(16);
   await env.DB.prepare("INSERT INTO vaults (id, recovery_hash, seq, created_at) VALUES (?, ?, 0, ?)")

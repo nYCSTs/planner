@@ -22,7 +22,9 @@
     "crons": ["* * * * *"]
   },
   "vars": {
-    "VAPID_SUBJECT": "mailto:planner@example.com"
+    "VAPID_SUBJECT": "mailto:planner@example.com",
+    // Personal instance: only one vault (your devices). "0" = unlimited.
+    "MAX_VAULTS": "1"
   },
   "observability": {
     "enabled": true

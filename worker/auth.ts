@@ -8,6 +8,8 @@ export interface Env {
   VAPID_JWK?: string;
   /** "mailto:" or https URL identifying the sender to push services. */
   VAPID_SUBJECT?: string;
+  /** Max vaults this server accepts ("0" = unlimited). */
+  MAX_VAULTS?: string;
 }
 
 export interface Auth {
