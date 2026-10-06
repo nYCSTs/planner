@@ -47,7 +47,7 @@ export function TaskBlock({
   const height = Math.max(dense ? 16 : 20, (drag.end - drag.start) * pxPerMinute);
 
   const gapPct = overlay ? 1.5 : 2.5;
-  const overlayBandPct = overlay ? Math.min(40, 16 + (columns - 1) * 12) : 0;
+  const overlayBandPct = overlay ? Math.min(45, 22 + (columns - 1) * 12) : 0;
   const widthPct = overlay
     ? (overlayBandPct - gapPct * (columns - 1)) / columns
     : (100 - gapPct * (columns - 1)) / columns;
@@ -166,7 +166,7 @@ export function TaskBlock({
         <span className={cn("truncate font-semibold", dimmed && "line-through")} style={{ color: dimmed ? undefined : "var(--foreground)" }}>
           {title}
         </span>
-        {!dense && (
+        {!dense && !overlay && (
           <span className="ml-auto flex shrink-0 items-center gap-0.5 opacity-60">
             {isRecurring(task) && <Repeat className="h-3 w-3" />}
             {task.link && <LinkIcon className="h-3 w-3" />}
@@ -174,7 +174,7 @@ export function TaskBlock({
             {occurrence.hasSubtasks && <ListChecks className="h-3 w-3" />}
           </span>
         )}
-        {onStartTimer && !dimmed && !dense && (
+        {onStartTimer && !dimmed && !dense && !overlay && (
           <button
             type="button"
             aria-label="Iniciar cronômetro"

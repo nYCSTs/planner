@@ -195,7 +195,7 @@ export function ProjectSelect({
         onChange(v === NO_PROJECT ? undefined : (v as string));
       }}
     >
-      <SelectTrigger className={cn("w-full", className)}>
+      <SelectTrigger className={cn("w-full", className)} aria-label="Projeto">
         <SelectValue>
           {(v: string) => {
             const p = projects.find((x) => x.id === v);

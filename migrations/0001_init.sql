@@ -57,3 +57,11 @@ CREATE TABLE push_outbox (
   created_at INTEGER NOT NULL,
   PRIMARY KEY (vault_id, tag)
 );
+
+-- Today's notification schedule per vault, recomputed when data changes.
+CREATE TABLE push_plans (
+  vault_id TEXT PRIMARY KEY REFERENCES vaults(id) ON DELETE CASCADE,
+  day TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  plan TEXT NOT NULL
+);

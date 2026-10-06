@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { beep } from "@/lib/sound";
 import { formatClock } from "@/lib/time";
-import { startTimer } from "@/lib/store/actions";
+import { startTimer, stopTimer } from "@/lib/store/actions";
 import { useRunningEntry } from "@/lib/store/hooks";
 
 type Phase = "work" | "break";
@@ -21,6 +21,7 @@ interface PomodoroState {
 }
 
 const KEY = "planner.pomodoro";
+const POMODORO_TITLE = "Foco (Pomodoro)";
 
 function load(workMs: number): PomodoroState {
   try {
@@ -103,6 +104,10 @@ export function Pomodoro({ open, onOpen, onClose, workMinutes, breakMinutes, sou
 
     const next: Phase = state.phase === "work" ? "break" : "work";
     const len = next === "work" ? workMs : breakMs;
+    if (next === "break" && runningEntry?.title === POMODORO_TITLE) {
+      stopTimer();
+    }
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
     update({ phase: next, endsAt: Date.now() + len, remaining: len, cycles: state.cycles + (state.phase === "work" ? 1 : 0) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,7 +123,7 @@ export function Pomodoro({ open, onOpen, onClose, workMinutes, breakMinutes, sou
     setNow(t);
     update({ ...state, endsAt: t + state.remaining });
     if (state.phase === "work" && !runningEntry) {
-      startTimer({ title: "Foco (Pomodoro)" });
+      startTimer({ title: POMODORO_TITLE });
     }
   };
 

@@ -1,20 +1,7 @@
 import { HttpError, json, preflight, readJson, str } from "./http";
 import { normalizeCode, randomCode, randomId, randomToken, sha256 } from "./crypto";
+import { authenticate, type Auth, type Env } from "./auth";
 import { pushRoutes, runPushCron } from "./push";
-
-export interface Env {
-  DB: D1Database;
-  ASSETS: Fetcher;
-  /** Private VAPID key as a JWK JSON string (wrangler secret). */
-  VAPID_JWK?: string;
-  /** "mailto:" or https URL identifying the sender to push services. */
-  VAPID_SUBJECT?: string;
-}
-
-export interface Auth {
-  vaultId: string;
-  deviceId: string;
-}
 
 const COLLECTIONS = new Set(["tasks", "occurrences", "entries", "tags", "projects", "settings"]);
 const PAIRING_TTL_MS = 10 * 60_000;
@@ -35,27 +22,6 @@ async function newDevice(env: Env, vaultId: string, name: string) {
     .bind(deviceId, vaultId, await sha256(token), name, now, now)
     .run();
   return { vaultId, deviceId, token };
-}
-
-export async function authenticate(req: Request, env: Env): Promise<Auth> {
-  const header = req.headers.get("Authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!token) {
-    throw new HttpError(401, "Sem token");
-  }
-
-  const row = await env.DB.prepare("SELECT id, vault_id, last_seen_at FROM devices WHERE token_hash = ?")
-    .bind(await sha256(token))
-    .first<{ id: string; vault_id: string; last_seen_at: number }>();
-  if (!row) {
-    throw new HttpError(401, "Aparelho não autorizado");
-  }
-
-  if (Date.now() - row.last_seen_at > 5 * 60_000) {
-    await env.DB.prepare("UPDATE devices SET last_seen_at = ? WHERE id = ?").bind(Date.now(), row.id).run();
-  }
-
-  return { vaultId: row.vault_id, deviceId: row.id };
 }
 
 async function createVault(req: Request, env: Env) {
@@ -153,6 +119,7 @@ async function deleteVault(env: Env, auth: Auth) {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM records WHERE vault_id = ?").bind(v),
     env.DB.prepare("DELETE FROM push_outbox WHERE vault_id = ?").bind(v),
+    env.DB.prepare("DELETE FROM push_plans WHERE vault_id = ?").bind(v),
     env.DB.prepare("DELETE FROM push_subscriptions WHERE vault_id = ?").bind(v),
     env.DB.prepare("DELETE FROM pairings WHERE vault_id = ?").bind(v),
     env.DB.prepare("DELETE FROM devices WHERE vault_id = ?").bind(v),

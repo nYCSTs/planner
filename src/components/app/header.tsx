@@ -176,6 +176,8 @@ export function DesktopHeader({ now, overdueCount }: { now: Date; overdueCount: 
               key={v.id}
               type="button"
               onClick={() => ui.setView(v.id)}
+              aria-label={v.label}
+              title={`${v.label} (${VIEWS.indexOf(v) + 1})`}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium transition",
                 ui.view === v.id ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",

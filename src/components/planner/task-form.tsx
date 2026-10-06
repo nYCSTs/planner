@@ -527,7 +527,7 @@ export function TaskForm() {
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Repetição</Label>
               <Select value={d.repeat} onValueChange={(v) => set("repeat", v as RepeatOption)}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" aria-label="Repetição">
                   <SelectValue>
                     {(v: RepeatOption) => REPEAT_OPTIONS.find((o) => o.value === v)?.label ?? v}
                   </SelectValue>
@@ -633,7 +633,7 @@ export function TaskForm() {
               </div>
             )}
 
-            {recurring && (
+            {["custom", "everyNDays", "everyNWeeks", "monthly", "yearly", "afterDone"].includes(d.repeat) && (
               <p className="text-xs text-muted-foreground">{describeRecurrence(previewRec)}</p>
             )}
 

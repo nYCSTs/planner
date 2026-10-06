@@ -247,7 +247,7 @@ export async function startEngine() {
       await saveSession(session);
     }
 
-    void syncNow();
+    void syncNow().then(ensureTimeZone);
   }
 }
 
@@ -270,8 +270,9 @@ async function adopt(
     cursor: 0,
     pairedAt: Date.now(),
   });
-  ensureTimeZone();
+  // Pull the vault's settings first so only the time zone field changes.
   await syncNow();
+  ensureTimeZone();
 }
 
 /** Turn this device into the first one of a new vault. */
@@ -353,4 +354,20 @@ export async function deleteServerData() {
 
 export function pendingChanges(): number {
   return dirtyRecords().length;
+}
+
+export async function pushPublicKey(): Promise<string> {
+  return (await api<{ publicKey: string }>("/api/push/key")).publicKey;
+}
+
+export async function registerPush(endpoint: string) {
+  await api("/api/push/subscribe", { method: "POST", token: token(), body: { endpoint } });
+}
+
+export async function unregisterPush(endpoint: string) {
+  await api("/api/push/unsubscribe", { method: "POST", token: token(), body: { endpoint } }).catch(() => undefined);
+}
+
+export async function testPush(): Promise<number> {
+  return (await api<{ sent: number }>("/api/push/test", { method: "POST", token: token() })).sent;
 }
