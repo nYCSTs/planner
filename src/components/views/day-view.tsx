@@ -9,7 +9,7 @@ import { isBacklog } from "@/lib/occurrences";
 import { scheduleBacklog, updateEntry } from "@/lib/store/actions";
 import { useDayOccurrences, useOccurrence } from "@/lib/store/use-day";
 import { useEntries, usePrefs, useProjectsById, useSettings, useTags, useTagsById, useTasksById } from "@/lib/store/hooks";
-import { useIsDesktop, useMediaQuery } from "@/hooks/use-media-query";
+import { useIsDesktop, useIsMobile, useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { Timeline } from "@/components/planner/timeline";
 import { TaskList } from "@/components/planner/task-list";
@@ -24,6 +24,7 @@ export function DayView({ now }: { now: Date }) {
   const settings = useSettings();
   const isDesktop = useIsDesktop();
   const isWide = useMediaQuery("(min-width: 1280px)");
+  const isMobile = useIsMobile();
   const occurrences = useDayOccurrences(day, now);
   const entries = useEntries();
   const tags = useTags();
@@ -109,7 +110,7 @@ export function DayView({ now }: { now: Date }) {
           listVisible ? "md:w-72 xl:w-80" : "md:w-0 md:border-r-0",
         )}
       >
-        {listVisible && list}
+        {listVisible && !isMobile && list}
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col">
@@ -138,8 +139,7 @@ export function DayView({ now }: { now: Date }) {
           ))}
         </div>
         <div className="min-h-0 flex-1 md:px-3 md:py-2">
-          <div className={cn("h-full", mobileTab === "list" && "max-md:hidden")}>{timeline}</div>
-          <div className={cn("h-full md:hidden", mobileTab !== "list" && "hidden")}>{list}</div>
+          {isMobile && mobileTab === "list" ? <div className="h-full">{list}</div> : timeline}
         </div>
       </section>
 
