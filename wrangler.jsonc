@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       // Replace with the id printed by `npx wrangler d1 create planner`.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "72bdc5b9-4ad1-4ff3-813e-19bdf5ceee7f",
       "database_name": "planner",
       "migrations_dir": "migrations"
     }
@@ -22,7 +22,7 @@
     "crons": ["* * * * *"]
   },
   "vars": {
-    "VAPID_SUBJECT": "mailto:planner@example.com",
+    "VAPID_SUBJECT": "mailto:lucascandradex1@gmail.com",
     // Personal instance: only one vault (your devices). "0" = unlimited.
     "MAX_VAULTS": "1"
   },
