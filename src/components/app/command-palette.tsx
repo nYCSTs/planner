@@ -132,7 +132,7 @@ export function CommandPalette() {
 
   return (
     <Dialog open={ui.paletteOpen} onOpenChange={(o) => !o && close()}>
-      <DialogContent showCloseButton={false} className="top-[15%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent showCloseButton={false} className="top-[15%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg max-sm:top-3 max-sm:bottom-auto max-sm:max-w-[calc(100%-1.5rem)] max-sm:rounded-xl max-sm:pb-0">
         <DialogTitle className="sr-only">Buscar</DialogTitle>
         <div className="flex items-center gap-2 border-b px-3">
           <Search className="h-4 w-4 text-muted-foreground" />

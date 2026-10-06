@@ -52,6 +52,7 @@ import { useProjects, useSettings, useStore, useTags } from "@/lib/store/hooks";
 import { useUI } from "@/components/app/ui-context";
 import { useNowMs } from "@/hooks/use-now";
 import { PushSettings } from "@/components/app/push-settings";
+import { useInstallPrompt } from "@/components/app/use-pwa";
 import type { Settings, SleepSchedule, Task, Weekday } from "@/types";
 
 const THEMES: { value: Settings["theme"]; label: string; icon: typeof Sun }[] = [
@@ -398,6 +399,9 @@ export function SettingsSheet() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const install = useInstallPrompt();
+  const isIos = typeof navigator !== "undefined" && /iPhone|iPad/.test(navigator.userAgent);
+  const standalone = typeof window !== "undefined" && window.matchMedia("(display-mode: standalone)").matches;
 
   const handleExport = () => {
     const blob = new Blob([exportData()], { type: "application/json" });
@@ -434,9 +438,22 @@ export function SettingsSheet() {
         </SheetHeader>
 
         <div className="space-y-6 px-4 pb-8">
-          <Button variant="outline" className="w-full justify-start" onClick={() => ui.setSyncOpen(true)}>
-            <RefreshCw className="h-4 w-4" /> Sincronizar com outros aparelhos
-          </Button>
+          <div className="space-y-2">
+            <Button variant="outline" className="w-full justify-start" onClick={() => ui.setSyncOpen(true)}>
+              <RefreshCw className="h-4 w-4" /> Sincronizar com outros aparelhos
+            </Button>
+            {install && (
+              <Button variant="outline" className="w-full justify-start" onClick={() => void install()}>
+                <Download className="h-4 w-4" /> Instalar como app
+              </Button>
+            )}
+            {isIos && !standalone && (
+              <p className="text-xs text-muted-foreground">
+                No iPhone, instale pelo Safari: Compartilhar → Adicionar à Tela de Início. Isso também libera as
+                notificações.
+              </p>
+            )}
+          </div>
 
           <Section title="Tema">
             <div className="grid grid-cols-3 gap-2">

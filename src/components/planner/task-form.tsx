@@ -318,7 +318,7 @@ export function TaskForm() {
     !editing &&
     d.repeat === "once" &&
     d.timed &&
-    (d.date < todayKey || (d.date === todayKey && startMinute < nowMinutes()));
+    (d.date < todayKey || (d.date === todayKey && startMinute < nowMinutes() - 10));
   const invalid = !d.title.trim() || endBeforeStart || endDateBeforeStart || needsWeekdays || isInPast || (d.timed && !recurring && !d.date);
 
   const close = () => {

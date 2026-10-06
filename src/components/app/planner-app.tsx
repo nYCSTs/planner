@@ -31,6 +31,7 @@ import { ShortcutsHelp, useShortcuts } from "./shortcuts";
 import { OverdueDialog, useOverdue } from "./overdue-dialog";
 import { SyncDialog } from "./sync-dialog";
 import { useSyncEngine } from "./use-sync";
+import { usePwa } from "./use-pwa";
 
 function DetailDialog({ now }: { now: Date }) {
   const ui = useUI();
@@ -70,6 +71,7 @@ function Shell() {
 
   useShortcuts();
   useSyncEngine();
+  usePwa();
 
   const views = {
     day: <DayView now={now} />,
