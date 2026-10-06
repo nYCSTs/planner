@@ -1,145 +1,123 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { GitFork, Search } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Copy, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { minutesToTime, dateKey } from "@/lib/time";
-import type { Task } from "@/types";
+import { dayFromKey, minutesToTime } from "@/lib/time";
+import { duplicateTask } from "@/lib/store/actions";
+import { useTasks } from "@/lib/store/hooks";
+import { useUI } from "@/components/app/ui-context";
+import { cn } from "@/lib/utils";
 
-interface ForkDialogProps {
-  open: boolean;
-  tasks: Task[];
-  defaultDay: Date;
-  onClose: () => void;
-  /** Called with the chosen source task id and the target day. */
-  onPick: (taskId: string, targetDay: Date) => void;
-}
-
-export function ForkDialog({
-  open,
-  tasks,
-  defaultDay,
-  onClose,
-  onPick,
-}: ForkDialogProps) {
+export function ForkDialog() {
+  const ui = useUI();
+  const req = ui.duplicateFrom;
+  const tasks = useTasks();
   const [query, setQuery] = useState("");
-  const [targetDateStr, setTargetDateStr] = useState<string>(
-    () => dateKey(defaultDay),
-  );
+  const [picked, setPicked] = useState<string | null>(null);
+  const [target, setTarget] = useState("");
+  const [lastReq, setLastReq] = useState(req);
 
-  // Reset target day whenever the dialog opens with a new defaultDay.
-  const handleOpenChange = (o: boolean) => {
-    if (!o) { onClose(); return; }
-    setTargetDateStr(dateKey(defaultDay));
-  };
+  if (req !== lastReq) {
+    setLastReq(req);
+    setQuery("");
+    setPicked(req?.taskId ?? null);
+    setTarget(req?.date ?? "");
+  }
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tasks
       .filter((t) => (q ? t.title.toLowerCase().includes(q) : true))
-      .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
+      .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
+      .slice(0, 60);
   }, [tasks, query]);
 
-  const targetDay = useMemo(() => {
-    try { return parseISO(targetDateStr); } catch { return defaultDay; }
-  }, [targetDateStr, defaultDay]);
+  const close = () => ui.setDuplicateFrom(null);
 
-  const targetLabel = useMemo(() => {
-    try {
-      return format(targetDay, "EEEE, d 'de' MMMM", { locale: ptBR });
-    } catch { return targetDateStr; }
-  }, [targetDay, targetDateStr]);
+  const confirm = () => {
+    if (!picked || !req || !target) {
+      return;
+    }
+
+    const copy = duplicateTask(picked, req.date, target);
+    close();
+    ui.closeDetail();
+    if (copy) {
+      ui.toast("Cópia criada");
+      ui.openForm({ taskId: copy.id });
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-lg">
+    <Dialog open={req !== null} onOpenChange={(o) => !o && close()}>
+      <DialogContent className="max-h-[85dvh] overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <GitFork className="h-4 w-4" /> Copiar de tarefa existente
+            <Copy className="h-4 w-4" /> Duplicar tarefa
           </DialogTitle>
         </DialogHeader>
 
-        {/* Target day picker */}
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Para o dia</Label>
           <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              value={targetDateStr}
-              onChange={(e) => setTargetDateStr(e.target.value)}
-              className="w-44 text-sm"
-            />
-            <span className="truncate text-sm capitalize text-muted-foreground">
-              {targetLabel}
-            </span>
+            <Input type="date" value={target} onChange={(e) => setTarget(e.target.value)} className="w-44 text-sm" />
+            {target && (
+              <span className="block truncate text-sm text-muted-foreground first-letter:uppercase">
+                {format(dayFromKey(target), "EEEE, d 'de' MMMM", { locale: ptBR })}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Task search */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            autoFocus
-            value={query}
-            placeholder="Buscar tarefa pelo nome…"
-            className="pl-8"
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <Input autoFocus={!req?.taskId} value={query} placeholder="Buscar tarefa pelo nome…" className="pl-8" onChange={(e) => setQuery(e.target.value)} />
         </div>
 
-        <div className="-mx-1 max-h-[45vh] overflow-y-auto px-1">
+        <div className="-mx-1 max-h-[40dvh] overflow-y-auto px-1">
           {results.length === 0 ? (
-            <p className="p-4 text-center text-sm text-muted-foreground">
-              Nenhuma tarefa encontrada.
-            </p>
+            <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma tarefa encontrada.</p>
           ) : (
             <ul className="space-y-0.5">
               {results.map((t) => (
                 <li key={t.id}>
                   <button
                     type="button"
-                    onClick={() => onPick(t.id, targetDay)}
-                    className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left hover:bg-accent/50"
+                    onClick={() => setPicked(t.id)}
+                    onDoubleClick={confirm}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left hover:bg-accent/50",
+                      picked === t.id && "bg-accent ring-1 ring-primary/40",
+                    )}
                   >
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: t.color }}
-                    />
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: t.color }} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{t.title}</span>
                       <span className="block text-[11px] text-muted-foreground">
-                        {t.startMinute === null
-                          ? "Sem horário"
-                          : minutesToTime(t.startMinute)}
-                        {(t.subtasks?.length ?? 0) > 0 &&
-                          ` · ${t.subtasks!.length} subtarefa${
-                            t.subtasks!.length === 1 ? "" : "s"
-                          }`}
+                        {t.startMinute === null ? "Sem horário" : minutesToTime(t.startMinute)}
+                        {(t.subtasks?.length ?? 0) > 0 && ` · ${t.subtasks!.length} subtarefa${t.subtasks!.length === 1 ? "" : "s"}`}
                       </span>
                     </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 shrink-0 text-xs"
-                      tabIndex={-1}
-                    >
-                      Copiar
-                    </Button>
                   </button>
                 </li>
               ))}
             </ul>
           )}
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={close}>
+            Cancelar
+          </Button>
+          <Button disabled={!picked || !target} onClick={confirm}>
+            Duplicar
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

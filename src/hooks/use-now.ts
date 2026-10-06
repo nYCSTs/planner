@@ -2,16 +2,31 @@
 
 import { useEffect, useState } from "react";
 
-/** Returns the current Date, re-rendering every `intervalMs` (default 30s).
- *  State is set only inside useEffect so the initial value is always the local
- *  wall-clock time on the client, never the server's UTC clock. */
+/** Current Date, refreshed every `intervalMs` (client clock only). */
 export function useNow(intervalMs = 30_000): Date {
   const [now, setNow] = useState<Date>(() => new Date());
   useEffect(() => {
-    // Immediately correct the initial value (it may have been set in SSR UTC).
+    // Correct the initial value, which may come from the prerendered HTML.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(new Date());
     const id = setInterval(() => setNow(new Date()), intervalMs);
     return () => clearInterval(id);
   }, [intervalMs]);
+  return now;
+}
+
+/** ms epoch refreshed every `intervalMs` while `active`. */
+export function useNowMs(intervalMs = 1000, active = true): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs, active]);
   return now;
 }

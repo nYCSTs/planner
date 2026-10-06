@@ -1,107 +1,90 @@
 import type { ResolvedOccurrence } from "@/types";
-import { isHourly } from "./time";
+import { isHourly } from "./recurrence";
 
 export interface PlacedOccurrence {
   occurrence: ResolvedOccurrence;
-  /** Column index within its overlap cluster. */
   column: number;
-  /** Total columns in its cluster. */
   columns: number;
-  /** True for hourly tasks rendered in the thin overlay band on the right. */
+  /** Hourly tasks render in the thin overlay band on the right. */
   overlay: boolean;
 }
 
-/**
- * Greedy column packing for a set of occurrences (Google-Calendar style):
- * transitively-overlapping occurrences are split into side-by-side columns so
- * none sit on top of another. Returns each occurrence with its column index and
- * the column count of its cluster.
- */
-function packColumns(
-  occurrences: ResolvedOccurrence[],
-): { occurrence: ResolvedOccurrence; column: number; columns: number }[] {
-  const out: { occurrence: ResolvedOccurrence; column: number; columns: number }[] =
-    [];
+interface Interval {
+  startMinute: number;
+  endMinute: number;
+}
 
-  const sorted = [...occurrences].sort(
-    (a, b) =>
-      a.startMinute - b.startMinute ||
-      b.endMinute - b.startMinute - (a.endMinute - a.startMinute),
+/**
+ * Greedy column packing (Google-Calendar style): transitively-overlapping
+ * items are split into side-by-side columns.
+ */
+export function packColumns<T extends Interval>(items: T[]): { item: T; column: number; columns: number }[] {
+  const out: { item: T; column: number; columns: number }[] = [];
+  const sorted = [...items].sort(
+    (a, b) => a.startMinute - b.startMinute || b.endMinute - b.startMinute - (a.endMinute - a.startMinute),
   );
 
-  let cluster: ResolvedOccurrence[] = [];
+  let cluster: T[] = [];
   let clusterEnd = -1;
 
   const flush = () => {
-    if (cluster.length === 0) return;
     const columnEnds: number[] = [];
-    const assignment = new Map<string, number>();
-    for (const occ of cluster) {
-      let col = columnEnds.findIndex((end) => end <= occ.startMinute);
+    const assignment = new Map<T, number>();
+    for (const it of cluster) {
+      let col = columnEnds.findIndex((end) => end <= it.startMinute);
       if (col === -1) {
         col = columnEnds.length;
-        columnEnds.push(occ.endMinute);
+        columnEnds.push(it.endMinute);
       } else {
-        columnEnds[col] = occ.endMinute;
+        columnEnds[col] = it.endMinute;
       }
-      assignment.set(occ.key, col);
+
+      assignment.set(it, col);
     }
-    const total = columnEnds.length;
-    for (const occ of cluster) {
-      out.push({ occurrence: occ, column: assignment.get(occ.key)!, columns: total });
+
+    for (const it of cluster) {
+      out.push({ item: it, column: assignment.get(it)!, columns: columnEnds.length });
     }
+
     cluster = [];
     clusterEnd = -1;
   };
 
-  for (const occ of sorted) {
-    if (cluster.length > 0 && occ.startMinute >= clusterEnd) {
+  for (const it of sorted) {
+    if (cluster.length > 0 && it.startMinute >= clusterEnd) {
       flush();
     }
-    cluster.push(occ);
-    clusterEnd = Math.max(clusterEnd, occ.endMinute);
+
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.endMinute);
   }
-  flush();
+
+  if (cluster.length) {
+    flush();
+  }
 
   return out;
 }
 
-/**
- * Lay out hourly occurrences in the overlay band with one column per distinct
- * hourly task. Because consecutive hourly slots chain into one giant transitive
- * cluster, per-occurrence packing would explode the column count; grouping by
- * task instead keeps each task in a stable, readable column (Bunpro always in
- * its column, "respostas" in the next).
- */
-function packOverlayByTask(
-  occurrences: ResolvedOccurrence[],
-): { occurrence: ResolvedOccurrence; column: number; columns: number }[] {
+/** One stable column per distinct hourly task in the overlay band. */
+function packOverlayByTask(occurrences: ResolvedOccurrence[]) {
   const taskIds: string[] = [];
   for (const o of occurrences) {
-    if (!taskIds.includes(o.task.id)) taskIds.push(o.task.id);
+    if (!taskIds.includes(o.task.id)) {
+      taskIds.push(o.task.id);
+    }
   }
+
   const columns = Math.max(1, taskIds.length);
-  return occurrences.map((occurrence) => ({
-    occurrence,
-    column: taskIds.indexOf(occurrence.task.id),
-    columns,
-  }));
+  return occurrences.map((occurrence) => ({ occurrence, column: taskIds.indexOf(occurrence.task.id), columns }));
 }
 
-/**
- * Place occurrences for the timeline. Hourly tasks are kept in a separate
- * "overlay" lane on the right so they sit on top of regular work; regular tasks
- * are column-packed by overlap, hourly tasks by distinct task, so overlapping
- * items never stack on top of each other.
- */
-export function placeOccurrences(
-  occurrences: ResolvedOccurrence[],
-): PlacedOccurrence[] {
-  const overlay = occurrences.filter((o) => isHourly(o.task.recurrence));
-  const regular = occurrences.filter((o) => !isHourly(o.task.recurrence));
+export function placeOccurrences(occurrences: ResolvedOccurrence[]): PlacedOccurrence[] {
+  const overlay = occurrences.filter((o) => isHourly(o.task.recurrence) && o.slot !== undefined);
+  const regular = occurrences.filter((o) => !(isHourly(o.task.recurrence) && o.slot !== undefined));
 
   return [
-    ...packColumns(regular).map((p) => ({ ...p, overlay: false })),
+    ...packColumns(regular).map((p) => ({ occurrence: p.item, column: p.column, columns: p.columns, overlay: false })),
     ...packOverlayByTask(overlay).map((p) => ({ ...p, overlay: true })),
   ];
 }

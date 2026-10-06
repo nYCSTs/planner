@@ -3,69 +3,100 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AlarmLimits } from "@/lib/sound";
 import type { ResolvedOccurrence, Settings } from "@/types";
-import { nowMinutes } from "@/lib/time";
+import { dateKey, nowMinutes } from "@/lib/time";
 import { startAlarm, stopAlarm, isAlarmActive } from "@/lib/sound";
 
 type Permission = "default" | "granted" | "denied" | "unsupported";
 
 function getPermission(): Permission {
-  if (typeof window === "undefined" || !("Notification" in window))
+  if (typeof window === "undefined" || !("Notification" in window)) {
     return "unsupported";
+  }
+
   return Notification.permission as Permission;
 }
 
-/** Fire browser notification (auto-closes after 5 s) and optionally start
- *  the repeating alarm sound with the configured stop limits. */
-function notify(title: string, body: string, sound: boolean, alarm: AlarmLimits) {
-  if (sound) startAlarm(alarm);
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
+/** Same tag as the push service worker uses, so both never show twice. */
+export function notificationTag(occKey: string, kind: "start" | "end"): string {
+  return `${kind}:${occKey}`;
+}
+
+function notify(tag: string, title: string, body: string, sound: boolean, alarm: AlarmLimits) {
+  if (sound) {
+    startAlarm(alarm);
+  }
+
+  if (getPermission() !== "granted") {
+    return;
+  }
+
   try {
-    const n = new Notification(title, { body, tag: title + body });
-    setTimeout(() => n.close(), 5000);
+    const n = new Notification(title, { body, tag, icon: "/icon-192.png" });
+    setTimeout(() => n.close(), 8000);
   } catch {
-    // ignore
+    // Some mobile browsers only allow notifications from the service worker.
+    void navigator.serviceWorker?.ready.then((reg) => reg.showNotification(title, { body, tag, icon: "/icon-192.png" }));
   }
 }
 
+function firedKey() {
+  return `planner.fired.${dateKey(new Date())}`;
+}
+
+function loadFired(): Set<string> {
+  try {
+    return new Set(JSON.parse(sessionStorage.getItem(firedKey()) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Only one tab rings/notifies at a time. */
+function useLeader(): boolean {
+  const [leader, setLeader] = useState(false);
+  useEffect(() => {
+    if (!navigator.locks) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLeader(true);
+      return;
+    }
+
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    void navigator.locks.request("planner-notify", () => {
+      setLeader(true);
+      return held;
+    });
+    return () => release();
+  }, []);
+  return leader;
+}
+
 /**
- * Watches today's occurrences and fires a notification when a task is about to
- * start or about to end, using per-task lead times (falling back to settings).
- * Each event fires at most once per day via an in-memory dedup set.
- *
- * Returns `alarmActive` (true while the repeating alarm sound is running) and
- * `dismissAlarm()` so the UI can render a "Parar alarme" button.
+ * Fires a notification (and optional alarm) when a task of today is about to
+ * start or end, using per-task lead times (falling back to settings).
  */
-export function useNotifications(
-  occurrences: ResolvedOccurrence[],
-  now: Date,
-  settings: Settings,
-  /** Task id currently being live-tracked — never triggers notifications. */
-  trackingTaskId?: string | null,
-) {
+export function useNotifications(occurrences: ResolvedOccurrence[], now: Date, settings: Settings) {
   const [permission, setPermission] = useState<Permission>("default");
   const [alarmActive, setAlarmActive] = useState(false);
-  const firedRef = useRef<Set<string>>(new Set());
+  const firedRef = useRef<Set<string> | null>(null);
+  const leader = useLeader();
 
   useEffect(() => {
-    // Reading the browser's current Notification permission (external system).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPermission(getPermission());
-  }, []);
-
-  // Poll alarm state so the banner updates when the alarm auto-starts.
-  useEffect(() => {
-    const id = setInterval(() => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAlarmActive(isAlarmActive());
-    }, 500);
+    const id = setInterval(() => setAlarmActive(isAlarmActive()), 500);
     return () => clearInterval(id);
   }, []);
 
   const requestPermission = useCallback(async () => {
-    if (!("Notification" in window)) return;
-    const result = await Notification.requestPermission();
-    setPermission(result as Permission);
+    if (!("Notification" in window)) {
+      return;
+    }
+
+    setPermission((await Notification.requestPermission()) as Permission);
   }, []);
 
   const dismissAlarm = useCallback(() => {
@@ -74,62 +105,55 @@ export function useNotifications(
   }, []);
 
   useEffect(() => {
-    if (!settings.notificationsEnabled) return;
-    const minute = nowMinutes(now);
+    if (!settings.notificationsEnabled || !leader) {
+      return;
+    }
+
+    if (!firedRef.current) {
+      firedRef.current = loadFired();
+    }
+
     const fired = firedRef.current;
-    const alarm: AlarmLimits = {
-      maxSeconds: settings.alarmMaxSeconds,
-      maxBeeps: settings.alarmMaxBeeps,
-    };
+    const minute = nowMinutes(now);
+    const alarm: AlarmLimits = { maxSeconds: settings.alarmMaxSeconds, maxBeeps: settings.alarmMaxBeeps };
+    let changed = false;
 
     for (const occ of occurrences) {
-      if (occ.completed) continue;
-      if (!occ.scheduled) continue; // unscheduled tasks have no time to notify
-      if (trackingTaskId && occ.task.id === trackingTaskId) continue; // live tracker
-      const leadStart = occ.task.notifyBeforeStart ?? settings.notifyBeforeStart;
-      const leadEnd = occ.task.notifyBeforeEnd ?? settings.notifyBeforeEnd;
-      const sound = occ.task.soundEnabled ?? settings.soundEnabled;
-
-      // About to start. With lead 0 this fires exactly at the start minute;
-      // with lead N it fires once within the N-minute window before start.
-      const startTrigger = occ.startMinute - leadStart;
-      const startKey = `start:${occ.key}`;
-      if (
-        !fired.has(startKey) &&
-        minute >= startTrigger &&
-        minute <= occ.startMinute
-      ) {
-        fired.add(startKey);
-        const remaining = occ.startMinute - minute;
-        notify(
-          remaining <= 0 ? "Começando agora" : `Começa em ${remaining} min`,
-          occ.task.title,
-          sound,
-          alarm,
-        );
+      if (occ.completed || occ.skipped || !occ.scheduled) {
+        continue;
       }
 
-      // About to end (skip open-ended tasks — no fixed end).
+      const leadStart = occ.task.notifyBeforeStart ?? settings.notifyBeforeStart;
+      const leadEnd = occ.task.notifyBeforeEnd ?? settings.notifyBeforeEnd;
+      const sound = settings.soundEnabled && (occ.task.soundEnabled ?? false);
+
+      const startTag = notificationTag(occ.key, "start");
+      if (!fired.has(startTag) && minute >= occ.startMinute - leadStart && minute <= occ.startMinute) {
+        fired.add(startTag);
+        changed = true;
+        const remaining = occ.startMinute - minute;
+        notify(startTag, remaining <= 0 ? "Começando agora" : `Começa em ${remaining} min`, occ.title, sound, alarm);
+      }
+
       if (!occ.openEnded) {
-        const endTrigger = occ.endMinute - leadEnd;
-        const endKey = `end:${occ.key}`;
-        if (
-          !fired.has(endKey) &&
-          minute >= endTrigger &&
-          minute <= occ.endMinute
-        ) {
-          fired.add(endKey);
+        const endTag = notificationTag(occ.key, "end");
+        if (!fired.has(endTag) && minute >= occ.endMinute - leadEnd && minute <= occ.endMinute) {
+          fired.add(endTag);
+          changed = true;
           const remaining = occ.endMinute - minute;
-          notify(
-            remaining <= 0 ? "Terminando agora" : `Termina em ${remaining} min`,
-            occ.task.title,
-            sound,
-            alarm,
-          );
+          notify(endTag, remaining <= 0 ? "Terminando agora" : `Termina em ${remaining} min`, occ.title, sound, alarm);
         }
       }
     }
-  }, [occurrences, now, settings, trackingTaskId]);
+
+    if (changed) {
+      try {
+        sessionStorage.setItem(firedKey(), JSON.stringify([...fired]));
+      } catch {
+        // ignore
+      }
+    }
+  }, [occurrences, now, settings, leader]);
 
   return { permission, requestPermission, alarmActive, dismissAlarm };
 }

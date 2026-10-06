@@ -1,61 +1,66 @@
 import type { Task } from "@/types";
-import { dateKey, intervalsOverlap, isHourly, recurrenceWeekdays } from "./time";
+import { addDaysKey, dateKey, intervalsOverlap } from "./time";
+import { isHourly, patternMatches } from "./recurrence";
 
-/**
- * Two tasks can share at least one active day if their recurrence patterns
- * intersect. "once" tasks compare by their explicit date.
- */
-function sharesActiveDay(a: Task, b: Task): boolean {
-  const aOnce = a.recurrence.kind === "once";
-  const bOnce = b.recurrence.kind === "once";
+const HORIZON_DAYS = 56;
 
-  if (aOnce && bOnce) return a.date === b.date;
-  if (aOnce !== bOnce) {
-    // One dated, one recurring: check the dated task's weekday against pattern.
-    const once = aOnce ? a : b;
-    const recurring = aOnce ? b : a;
-    if (!once.date) return false;
-    const weekday = new Date(once.date + "T00:00:00").getDay();
-    return recurrenceWeekdays(recurring.recurrence).includes(weekday as never);
+type Candidate = Pick<Task, "startMinute" | "endMinute" | "recurrence" | "date" | "createdAt">;
+
+function upcomingDays(task: Candidate, from: string): Set<string> {
+  const days = new Set<string>();
+  if (task.recurrence.kind === "once") {
+    if (task.date && task.date >= from) {
+      days.add(task.date);
+    }
+
+    return days;
   }
 
-  // Both recurring: any weekday overlap.
-  const aDays = recurrenceWeekdays(a.recurrence);
-  const bDays = recurrenceWeekdays(b.recurrence);
-  return aDays.some((d) => bDays.includes(d));
+  for (let i = 0; i < HORIZON_DAYS; i++) {
+    const key = addDaysKey(from, i);
+    if (patternMatches(task, key)) {
+      days.add(key);
+    }
+  }
+
+  return days;
 }
 
 /**
- * Find tasks that conflict (overlapping time on a shared day) with a candidate.
- * Hourly tasks are intentionally ignored as conflict sources — they're the
- * "interrupting" kind meant to overlay other work (e.g. the hourly review).
+ * Tasks whose time overlaps the candidate on a shared day within the next
+ * weeks. Hourly tasks are ignored — they're meant to overlay other work.
  */
-export function findConflicts(
-  candidate: Pick<Task, "startMinute" | "endMinute" | "recurrence" | "date">,
-  existing: Task[],
-  ignoreId?: string,
-): Task[] {
-  // Unscheduled tasks (no start time) never conflict.
+export function findConflicts(candidate: Candidate, existing: Task[], ignoreId?: string): Task[] {
   const candidateStart = candidate.startMinute;
-  if (candidateStart === null) return [];
+  if (candidateStart === null || isHourly(candidate.recurrence) || candidate.recurrence.kind === "afterDone") {
+    return [];
+  }
 
-  const todayKey = dateKey(new Date());
+  const today = dateKey(new Date());
+  const mine = upcomingDays(candidate, today);
+  if (mine.size === 0) {
+    return [];
+  }
 
   return existing.filter((task) => {
-    if (task.id === ignoreId) return false;
-    const taskStart = task.startMinute;
-    if (taskStart === null) return false;
-    if (isHourly(task.recurrence)) return false;
-    if (isHourly(candidate.recurrence)) return false;
-    // A "once" task with a past date will never occur again — it can't conflict.
-    if (task.recurrence.kind === "once" && task.date && task.date < todayKey) return false;
-    if (candidate.recurrence.kind === "once" && candidate.date && candidate.date < todayKey) return false;
-    if (!sharesActiveDay(task, candidate as Task)) return false;
-    return intervalsOverlap(
-      candidateStart,
-      candidate.endMinute,
-      taskStart,
-      task.endMinute,
-    );
+    if (task.id === ignoreId || task.deletedAt || task.startMinute === null) {
+      return false;
+    }
+
+    if (isHourly(task.recurrence) || task.recurrence.kind === "afterDone") {
+      return false;
+    }
+
+    if (!intervalsOverlap(candidateStart, candidate.endMinute, task.startMinute, task.endMinute)) {
+      return false;
+    }
+
+    for (const d of upcomingDays(task, today)) {
+      if (mine.has(d)) {
+        return true;
+      }
+    }
+
+    return false;
   });
 }

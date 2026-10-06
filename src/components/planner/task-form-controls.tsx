@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ExternalLink, Link2, Plus, Tag as TagIcon } from "lucide-react";
+import { Check, ExternalLink, FolderOpen, Link2, Plus, Tag as TagIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn, normalizeUrl } from "@/lib/utils";
 import { TASK_COLORS, randomColor, rgba } from "@/lib/colors";
 import { PRIORITY_OPTIONS } from "@/lib/priority";
-import type { Priority, Tag } from "@/types";
+import { addProject, addTag } from "@/lib/store/actions";
+import type { Priority, Project, Tag } from "@/types";
 
 /** URL input with a leading link icon and a live "open" button when valid. */
 export function LinkField({
@@ -92,44 +100,135 @@ export function PrioritySelector({
   value,
   onChange,
   clearable = false,
+  compact = false,
 }: {
   value: Priority | undefined;
   onChange: (p: Priority | undefined) => void;
   clearable?: boolean;
+  compact?: boolean;
 }) {
+  const btn = (active: boolean) =>
+    cn(
+      "flex flex-1 items-center justify-center gap-1.5 rounded-lg border font-medium transition",
+      compact ? "h-8 px-1.5 text-xs" : "px-2 py-1.5 text-sm",
+      active ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent",
+    );
+
   return (
     <div className="flex gap-1.5">
       {clearable && (
-        <button
-          type="button"
-          onClick={() => onChange(undefined)}
-          className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-sm font-medium transition",
-            value === undefined
-              ? "border-primary bg-primary text-primary-foreground"
-              : "hover:bg-accent",
-          )}
-        >
-          Nenhuma
+        <button type="button" onClick={() => onChange(undefined)} className={btn(value === undefined)}>
+          {compact ? "—" : "Nenhuma"}
         </button>
       )}
       {PRIORITY_OPTIONS.map((p) => (
-        <button
-          key={p.value}
-          type="button"
-          onClick={() => onChange(p.value)}
-          className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-sm font-medium transition",
-            value === p.value
-              ? "border-primary bg-primary text-primary-foreground"
-              : "hover:bg-accent",
-          )}
-        >
+        <button key={p.value} type="button" onClick={() => onChange(p.value)} className={btn(value === p.value)}>
           <span className={cn("h-2.5 w-2.5 rounded-full", p.dot)} />
           {p.label}
         </button>
       ))}
     </div>
+  );
+}
+
+const NO_PROJECT = "__none__";
+const NEW_PROJECT = "__new__";
+
+/** Project picker with inline creation. */
+export function ProjectSelect({
+  projects,
+  value,
+  onChange,
+  className,
+}: {
+  projects: Project[];
+  value: string | undefined;
+  onChange: (id: string | undefined) => void;
+  className?: string;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const active = projects.filter((p) => !p.archived || p.id === value);
+
+  if (creating) {
+    const submit = () => {
+      const v = name.trim();
+      if (v) {
+        onChange(addProject(v, randomColor()).id);
+      }
+
+      setName("");
+      setCreating(false);
+    };
+
+    return (
+      <Input
+        autoFocus
+        value={name}
+        placeholder="Nome do projeto"
+        className={cn("h-8", className)}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
+
+          if (e.key === "Escape") {
+            setCreating(false);
+          }
+        }}
+        onBlur={submit}
+      />
+    );
+  }
+
+  return (
+    <Select
+      value={value ?? NO_PROJECT}
+      onValueChange={(v) => {
+        if (v === NEW_PROJECT) {
+          setCreating(true);
+          return;
+        }
+
+        onChange(v === NO_PROJECT ? undefined : (v as string));
+      }}
+    >
+      <SelectTrigger className={cn("w-full", className)}>
+        <SelectValue>
+          {(v: string) => {
+            const p = projects.find((x) => x.id === v);
+            return p ? (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
+                {p.name}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <FolderOpen className="h-3.5 w-3.5" /> Sem projeto
+              </span>
+            );
+          }}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_PROJECT}>Sem projeto</SelectItem>
+        {active.map((p) => (
+          <SelectItem key={p.id} value={p.id}>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
+              {p.name}
+            </span>
+          </SelectItem>
+        ))}
+        <SelectItem value={NEW_PROJECT}>
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <Plus className="h-3.5 w-3.5" /> Novo projeto…
+          </span>
+        </SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -142,12 +241,10 @@ export function TagSelector({
   allTags,
   selected,
   onToggle,
-  onCreate,
 }: {
   allTags: Tag[];
   selected: string[];
   onToggle: (id: string) => void;
-  onCreate: (label: string, color: string) => Tag;
 }) {
   const [creating, setCreating] = useState(false);
   const [label, setLabel] = useState("");
@@ -155,7 +252,7 @@ export function TagSelector({
   const submit = () => {
     const v = label.trim();
     if (v) {
-      const tag = onCreate(v, randomColor());
+      const tag = addTag(v, randomColor());
       onToggle(tag.id);
     }
     setLabel("");
